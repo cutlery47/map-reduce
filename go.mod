@@ -1,3 +1,3 @@
-module github.com/cutlery47/map-reduce
+module map-reduce
 
 go 1.23.2
