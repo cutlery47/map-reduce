@@ -1,0 +1,7 @@
+services:
+  worker:
+    build:
+      context: ../
+      dockerfile: ./worker/Dockerfile
+      tags: 
+      - "worker-image:latest"

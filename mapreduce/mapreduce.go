@@ -3,6 +3,7 @@ package mapreduce
 import (
 	"fmt"
 	"io"
+	"log"
 	"strings"
 )
 
@@ -27,6 +28,8 @@ func MapReduce() (Map[string, int], Reduce[string, int, string]) {
 // Define your Map() and Reduce() implementations below...
 
 var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], error) {
+	log.Println("in map")
+
 	res := []MapResult[string, int]{}
 
 	raw, err := io.ReadAll(input)
@@ -48,6 +51,8 @@ var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], er
 }
 
 var MyReduce Reduce[string, int, string] = func(res []MapResult[string, int]) ([]string, error) {
+	log.Println("in reduce")
+
 	reducerRes := []string{}
 
 	freq := map[string]int{}

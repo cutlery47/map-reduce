@@ -1,4 +1,8 @@
-.PHONY: client all
+.PHONY: worker all
 
-run:
-	go run client/cmd/main.go
+build-run-worker:
+	docker compose -f worker/compose.yaml up --build
+
+down-worker:
+	docker compose -f worker/compose.yaml down
+
