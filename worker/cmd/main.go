@@ -1,17 +1,21 @@
 package main
 
 import (
+	"io"
 	"log"
-	"time"
-
-	"github.com/cutlery47/mapreduce"
+	"net/http"
 )
 
 func main() {
-	mapFunc, reduceFunc := mapreduce.MapReduce()
+	res, err := http.Get("http://master-service:8080/")
+	if err != nil {
+		log.Fatal("http.Get:", err)
+	}
 
-	log.Println(mapFunc)
-	log.Println(reduceFunc)
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatal("io.ReadAll:", err)
+	}
 
-	time.Sleep(time.Hour)
+	log.Println("response:", string(resBody))
 }

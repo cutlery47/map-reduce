@@ -4,4 +4,4 @@ services:
       context: ../
       dockerfile: ./worker/Dockerfile
       tags: 
-      - "worker-image:latest"
+      - "cutlery47/worker-image:latest"

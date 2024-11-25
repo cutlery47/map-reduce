@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: worker-deployment
 spec:
-  replicas: 1
+  replicas: 5
   selector:
     matchLabels:
       app: worker
@@ -14,7 +14,30 @@ spec:
     spec:
       containers:
       - name: worker-container
-        image: worker-image:latest
+        image: cutlery47/worker-image:latest
         imagePullPolicy: IfNotPresent
-
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: master-pod
+  labels:
+    app: master-app
+spec:
+  containers:
+    - name: master-container
+      image: cutlery47/master-image:latest
+      imagePullPolicy: IfNotPresent
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: master-service
+spec:
+  selector: 
+    app: master-app
+  ports:
+    - protocol: TCP
+    port: 8080
+    targetPort: 8080
 

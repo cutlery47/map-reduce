@@ -1,0 +1,7 @@
+services:
+  master:
+    build:
+      context: ../
+      dockerfile: ./master/Dockerfile
+      tags: 
+      - "cutlery47/master-image:latest"
