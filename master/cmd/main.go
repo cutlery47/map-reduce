@@ -1,15 +1,20 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
@@ -22,66 +27,114 @@ type Addr struct {
 }
 
 var (
-	workerAddrs  []Addr
+	counter      atomic.Int64
 	mapperAddrs  []Addr
 	reducerAddrs []Addr
 )
 
-func DistWorkers(cl *http.Client, mappers, reducers int) {
-	for len(workerAddrs) != mappers+reducers {
-		log.Println(workerAddrs)
-		time.Sleep(2 * time.Second)
-	}
+var (
+	mapMu = &sync.Mutex{}
+	redMu = &sync.Mutex{}
+)
 
-	for _, addr := range workerAddrs {
-		req := mapreduce.MasterDistrRequest{}
-		res := &mapreduce.WorkerAckResponse{}
+func CollectWorkers(cl *http.Client, mappers, reducers int, timeout time.Duration, errChan chan<- error) {
+	timer := time.NewTimer(timeout)
 
-		if mappers > 0 {
-			req.Distr = mapreduce.MapperDistr
-			mappers--
-		} else if reducers > 0 {
-			req.Distr = mapreduce.ReducerDistr
-			reducers--
-		} else {
-			panic("received more worker requests than intended")
-		}
-
-		data, err := json.Marshal(req)
-		if err != nil {
-			log.Println(err)
-		}
-
-		body := bytes.NewReader(data)
-		httpRes, err := cl.Post(fmt.Sprintf("http://%v:%v/dist", addr.Host, addr.Port), "application/json", body)
-		if err != nil {
-			log.Println(err)
-		}
-
-		resBody, err := io.ReadAll(httpRes.Body)
-		if err != nil {
-			log.Println(err)
-		}
-
-		err = json.Unmarshal(resBody, res)
-		if err != nil {
-			log.Println(err)
-		}
-
-		if res.Ack != mapreduce.WorkerAck {
-			log.Println("worker ack not returned")
+	for cnt := counter.Load(); cnt != int64(mappers)+int64(reducers); cnt = counter.Load() {
+		select {
+		case <-timer.C:
+			errChan <- fmt.Errorf("expected %v workers, connected: %v", mappers+reducers, cnt)
+			return
+		default:
+			log.Println("connected:", cnt)
+			time.Sleep(time.Second)
 		}
 	}
+
+	log.Println("all workers connected")
+	go AssignMappers(cl, errChan)
+}
+
+func AssignMappers(cl *http.Client, errChan chan<- error) {
+	files, err := SplitFile("file.txt", len(mapperAddrs))
+	if err != nil {
+		errChan <- fmt.Errorf("SplitFile: %v", err)
+		return
+	}
+
+	var mapResults []interface{}
+
+	for i, addr := range mapperAddrs {
+		res, err := cl.Post(fmt.Sprintf("http://%v:%v/map", addr.Host, addr.Port), "text/plain", files[i])
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		mapResults = append(mapResults, body)
+	}
+
+	log.Println(mapResults...)
+
+	// for i, addr := range reducerAddrs {
+	// 	req, err := http.NewRequest
+	// }
+}
+
+func SplitFile(filename string, mappers int) ([]io.Reader, error) {
+	readers := []io.Reader{}
+
+	err := os.Mkdir("chunks", 0777)
+	if err != nil {
+		if !errors.Is(err, os.ErrExist) {
+			return nil, fmt.Errorf("os.Mkdir: %v", err)
+		}
+	}
+
+	bash := "split"
+	arg0, arg1 := "-n", strconv.Itoa(mappers)
+	arg2 := "-d"
+	arg3, arg4 := "file.txt", "chunks/"
+
+	cmd := exec.Command(bash, arg0, arg1, arg2, arg3, arg4)
+	cmd.Stderr = os.Stdin
+	cmd.Stdout = os.Stdout
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+
+	chunks, err := os.ReadDir("chunks")
+	if err != nil {
+		return nil, fmt.Errorf("os.ReadDir: %v", err)
+	}
+
+	for _, chunk := range chunks {
+		fd, err := os.Open(fmt.Sprintf("chunks/%v", chunk.Name()))
+		if err != nil {
+			return nil, err
+		}
+
+		readers = append(readers, fd)
+	}
+
+	return readers, nil
 }
 
 func main() {
 	ctx := context.Background()
-	mu := &sync.Mutex{}
+	syscall.Umask(0)
 
 	http.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			w.WriteHeader(400)
 			w.Write([]byte("not found"))
+			return
 		}
 
 		body := r.Body
@@ -106,15 +159,24 @@ func main() {
 			Host: strings.Split(r.RemoteAddr, ":")[0],
 		}
 
-		mu.Lock()
-		workerAddrs = append(workerAddrs, addr)
-		mu.Unlock()
+		cur := counter.Add(1)
+		if cur%2 == 0 {
+			mapMu.Lock()
+			mapperAddrs = append(mapperAddrs, addr)
+			mapMu.Unlock()
+		} else {
+			redMu.Lock()
+			reducerAddrs = append(reducerAddrs, addr)
+			redMu.Unlock()
+		}
 
 		w.Write([]byte("hello, worker!"))
 	})
 
-	go DistWorkers(http.DefaultClient, 1, 1)
+	errChan := make(chan error)
+
+	go CollectWorkers(http.DefaultClient, 1, 1, time.Second*10, errChan)
 
 	server := httpserver.New(http.DefaultServeMux)
-	log.Fatal("error: ", server.Run(ctx))
+	log.Fatal("server error: ", server.Run(ctx, errChan))
 }

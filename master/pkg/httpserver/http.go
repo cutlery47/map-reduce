@@ -41,7 +41,7 @@ func New(handler http.Handler) *Server {
 	return serv
 }
 
-func (s *Server) Run(ctx context.Context) error {
+func (s *Server) Run(ctx context.Context, errChan <-chan error) error {
 	log.Println(fmt.Sprintf("running http server on %v", s.server.Addr))
 
 	go func() {
@@ -53,10 +53,13 @@ func (s *Server) Run(ctx context.Context) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	<-sigChan
+	select {
+	case <-sigChan:
+	case err := <-errChan:
+		log.Println("error:", err)
+	}
 
 	log.Println("Shutting down http server")
-
 	ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
 	defer cancel()
 
