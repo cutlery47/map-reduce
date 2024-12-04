@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -62,7 +63,8 @@ func AssignMappers(cl *http.Client, errChan chan<- error) {
 		return
 	}
 
-	var mapResults []interface{}
+	var mapResults [][]byte
+	var redResults [][]byte
 
 	for i, addr := range mapperAddrs {
 		res, err := cl.Post(fmt.Sprintf("http://%v:%v/map", addr.Host, addr.Port), "text/plain", files[i])
@@ -80,11 +82,54 @@ func AssignMappers(cl *http.Client, errChan chan<- error) {
 		mapResults = append(mapResults, body)
 	}
 
-	log.Println(mapResults...)
+	for i, addr := range reducerAddrs {
+		res, err := cl.Post(fmt.Sprintf("http://%v:%v/reduce", addr.Host, addr.Port), "application/json", bytes.NewReader(mapResults[i]))
+		if err != nil {
+			errChan <- err
+			return
+		}
 
-	// for i, addr := range reducerAddrs {
-	// 	req, err := http.NewRequest
-	// }
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		redResults = append(redResults, body)
+	}
+
+	if err := ReturnResults(redResults); err != nil {
+		errChan <- err
+	}
+}
+
+func ReturnResults(redResults [][]byte) error {
+	hashMap := make(map[string]int)
+
+	for _, res := range redResults {
+		sliceRes := []string{}
+		json.Unmarshal(res, &sliceRes)
+		fmt.Println(sliceRes)
+
+		for _, el := range sliceRes {
+			elSplit := strings.Split(el, ":")
+			key := elSplit[0]
+			val, err := strconv.Atoi(elSplit[1])
+			if err != nil {
+				return err
+			}
+
+			if v, ok := hashMap[key]; !ok {
+				hashMap[key] = val
+			} else {
+				hashMap[key] = v + val
+			}
+		}
+	}
+
+	fmt.Println(hashMap)
+
+	return nil
 }
 
 func SplitFile(filename string, mappers int) ([]io.Reader, error) {

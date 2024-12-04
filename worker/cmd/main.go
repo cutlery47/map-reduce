@@ -98,12 +98,50 @@ func main() {
 			return
 		}
 
-		w.Write(json)
 		w.WriteHeader(200)
+		w.Write(json)
 	})
 
 	http.HandleFunc("/reduce", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(400)
+			w.Write([]byte("not found"))
+			return
+		}
 
+		bytesBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			errChan <- fmt.Errorf("io.ReadAll: %v", err)
+			w.WriteHeader(500)
+			w.Write([]byte("internal server error"))
+			return
+		}
+
+		var mapResult []mapreduce.MapResult[string, int]
+
+		if err := json.Unmarshal(bytesBody, &mapResult); err != nil {
+			errChan <- fmt.Errorf("json.Unmarshall: %v", err)
+			w.WriteHeader(500)
+			w.Write([]byte("internal server error"))
+			return
+		}
+
+		res, err := reduceFunc(mapResult)
+		if err != nil {
+			errChan <- fmt.Errorf("reduceFunc: %v", err)
+			w.WriteHeader(500)
+			w.Write([]byte("internal server error"))
+		}
+
+		jsonRes, err := json.Marshal(res)
+		if err != nil {
+			errChan <- fmt.Errorf("json.Marshall: %v", err)
+			w.WriteHeader(500)
+			w.Write([]byte("internal server error"))
+		}
+
+		w.WriteHeader(200)
+		w.Write(jsonRes)
 	})
 
 	// creating a new http server
