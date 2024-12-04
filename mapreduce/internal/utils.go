@@ -1,8 +1,8 @@
-package mapreduce
+package internal
 
 import "unicode"
 
-func strip(str string) string {
+func Strip(str string) string {
 	res := ""
 
 	for _, el := range str {
@@ -14,7 +14,7 @@ func strip(str string) string {
 	return res
 }
 
-func sum(vals []int) int {
+func Sum(vals []int) int {
 	res := 0
 
 	for _, el := range vals {

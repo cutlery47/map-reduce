@@ -5,6 +5,8 @@ import (
 	"io"
 	"log"
 	"strings"
+
+	"github.com/cutlery47/map-reduce/mapreduce/internal"
 )
 
 // KT - Map result key type
@@ -14,8 +16,8 @@ import (
 type Map[KT, VT any] func(input io.Reader) ([]MapResult[KT, VT], error)
 
 type MapResult[KT, VT any] struct {
-	MappedKey   KT
-	MappedValue VT
+	MappedKey   KT `json:"key"`
+	MappedValue VT `json:"value"`
 }
 
 type Reduce[KT, VT, RT any] func(res []MapResult[KT, VT]) ([]RT, error)
@@ -26,7 +28,7 @@ func MapReduce() (Map[string, int], Reduce[string, int, string]) {
 }
 
 // Define your Map() and Reduce() implementations below...
-
+// ======================================================
 var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], error) {
 	log.Println("in map")
 
@@ -39,7 +41,7 @@ var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], er
 
 	text := string(raw)
 
-	words := strings.Split(strip(text), " ")
+	words := strings.Split(internal.Strip(text), " ")
 	for _, word := range words {
 		res = append(res, MapResult[string, int]{
 			MappedKey:   word,
