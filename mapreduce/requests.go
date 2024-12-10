@@ -9,5 +9,6 @@ var (
 )
 
 type WorkerRegisterRequest struct {
+	Host string
 	Port string `json:"port"`
 }
