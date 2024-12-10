@@ -27,8 +27,12 @@ func MapReduce() (Map[string, int], Reduce[string, int, string]) {
 	return MyMap, MyReduce
 }
 
-// Define your Map() and Reduce() implementations below...
+// Define your Map(), Reduce(), MapResult and RedResult implementations below...
 // ======================================================
+
+type MyMapResult []MapResult[string, int]
+type MyRedResult []string
+
 var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], error) {
 	log.Println("in map")
 
