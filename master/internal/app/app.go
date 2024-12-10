@@ -19,10 +19,11 @@ func Run() error {
 	ctx := context.Background()
 	errChan := make(chan error)
 
-	srv := service.NewWorkerService(*mapreduce.DefaultConfig, http.DefaultClient, errChan)
+	srv := service.NewMasterService(*mapreduce.DefaultConfig, http.DefaultClient)
 
 	r := chi.NewRouter()
-	v1.NewController(r, srv)
+	v1.NewController(r, srv, errChan)
 
+	go srv.HandleWorkers(errChan)
 	return httpserver.New(r).Run(ctx, errChan)
 }

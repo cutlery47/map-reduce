@@ -23,7 +23,7 @@ type Service interface {
 	Register(req mapreduce.WorkerRegisterRequest) error
 }
 
-type WorkerService struct {
+type MasterService struct {
 	// http client for contacting workers
 	cl *http.Client
 
@@ -38,8 +38,6 @@ type WorkerService struct {
 	mapMu *sync.Mutex
 	redMu *sync.Mutex
 
-	// channel for sending error to the httpserver
-	errChan chan<- error
 	// channel for signaling that worker collection should start
 	startChan chan struct{}
 
@@ -48,9 +46,9 @@ type WorkerService struct {
 	conf mapreduce.Config
 }
 
-// WorkerService constructor
-func NewWorkerService(conf mapreduce.Config, cl *http.Client, errChan chan<- error) *WorkerService {
-	ws := &WorkerService{
+// MasterService constructor
+func NewMasterService(conf mapreduce.Config, cl *http.Client) *MasterService {
+	ms := &MasterService{
 		cl:           cl,
 		cnt:          atomic.Int64{},
 		mapperAddrs:  []addr{},
@@ -59,57 +57,58 @@ func NewWorkerService(conf mapreduce.Config, cl *http.Client, errChan chan<- err
 		redMu:        &sync.Mutex{},
 		conf:         conf,
 		once:         sync.Once{},
-		errChan:      errChan,
 		startChan:    make(chan struct{}),
 	}
 
-	go ws.HandleWorkers()
-	return ws
+	return ms
 }
 
 // Registering incoming workers
-func (ws *WorkerService) Register(req mapreduce.WorkerRegisterRequest) error {
-	ws.once.Do(func() {
-		ws.startChan <- struct{}{}
+func (ms *MasterService) Register(req mapreduce.WorkerRegisterRequest) error {
+	ms.once.Do(func() {
+		ms.startChan <- struct{}{}
 	})
 
-	cur := ws.cnt.Add(1)
+	cur := ms.cnt.Add(1)
 	if cur%2 == 0 {
-		ws.mapMu.Lock()
-		ws.mapperAddrs = append(ws.mapperAddrs, addr{Port: req.Port, Host: req.Host})
-		ws.mapMu.Unlock()
+		ms.mapMu.Lock()
+		ms.mapperAddrs = append(ms.mapperAddrs, addr{Port: req.Port, Host: req.Host})
+		ms.mapMu.Unlock()
 	} else {
-		ws.redMu.Lock()
-		ws.reducerAddrs = append(ws.reducerAddrs, addr{Port: req.Port, Host: req.Host})
-		ws.redMu.Unlock()
+		ms.redMu.Lock()
+		ms.reducerAddrs = append(ms.reducerAddrs, addr{Port: req.Port, Host: req.Host})
+		ms.redMu.Unlock()
 	}
+
+	fmt.Println(ms.mapperAddrs, ms.reducerAddrs)
 
 	return nil
 }
 
 // Handle registered workers
-func (ws *WorkerService) HandleWorkers() {
+func (ms *MasterService) HandleWorkers(errChan chan<- error) {
 	// waiting for first request to hit
-	<-ws.startChan
+	<-ms.startChan
+	fmt.Println("here")
 
-	total := ws.conf.Mappers + ws.conf.Reducers
-	timer := time.NewTimer(ws.conf.RegisterTimeout)
-	for cnt := ws.cnt.Load(); cnt != int64(total); cnt = ws.cnt.Load() {
+	total := ms.conf.Mappers + ms.conf.Reducers
+	timer := time.NewTimer(ms.conf.RegisterTimeout)
+	for cnt := ms.cnt.Load(); cnt != int64(total); cnt = ms.cnt.Load() {
 		select {
 		case <-timer.C:
-			ws.errChan <- fmt.Errorf("expected %v workers, connected: %v", total, cnt)
+			errChan <- fmt.Errorf("expected %v workers, connected: %v", total, cnt)
 			return
 		default:
 			log.Println("connected:", cnt)
-			time.Sleep(ws.conf.CollectTimeout)
+			time.Sleep(ms.conf.CollectTimeout)
 		}
 	}
 	log.Println("all workers connected")
 
 	// split current file into parts = amount of workers
-	files, err := ws.SplitFile("file.txt", ws.conf.Mappers)
+	files, err := ms.SplitFile("file.txt", ms.conf.Mappers)
 	if err != nil {
-		ws.errChan <- fmt.Errorf("SplitFile: %v", err)
+		errChan <- fmt.Errorf("SplitFile: %v", err)
 		return
 	}
 
@@ -117,16 +116,16 @@ func (ws *WorkerService) HandleWorkers() {
 	var redResults [][]byte
 
 	// Senging tasks to mappers
-	for i, addr := range ws.mapperAddrs {
-		res, err := ws.cl.Post(fmt.Sprintf("http://%v:%v/map", addr.Host, addr.Port), "text/plain", files[i])
+	for i, addr := range ms.mapperAddrs {
+		res, err := ms.cl.Post(fmt.Sprintf("http://%v:%v/map", addr.Host, addr.Port), "text/plain", files[i])
 		if err != nil {
-			ws.errChan <- err
+			errChan <- err
 			return
 		}
 
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
-			ws.errChan <- err
+			errChan <- err
 			return
 		}
 
@@ -135,16 +134,16 @@ func (ws *WorkerService) HandleWorkers() {
 	}
 
 	// Sending tasks to reducers
-	for i, addr := range ws.reducerAddrs {
-		res, err := ws.cl.Post(fmt.Sprintf("http://%v:%v/reduce", addr.Host, addr.Port), "application/json", bytes.NewReader(mapResults[i]))
+	for i, addr := range ms.reducerAddrs {
+		res, err := ms.cl.Post(fmt.Sprintf("http://%v:%v/reduce", addr.Host, addr.Port), "application/json", bytes.NewReader(mapResults[i]))
 		if err != nil {
-			ws.errChan <- err
+			errChan <- err
 			return
 		}
 
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
-			ws.errChan <- err
+			errChan <- err
 			return
 		}
 
@@ -153,12 +152,12 @@ func (ws *WorkerService) HandleWorkers() {
 	}
 
 	// return and shutdown
-	err = ws.ReturnResults(redResults)
-	ws.errChan <- err
+	err = ms.ReturnResults(redResults)
+	errChan <- err
 }
 
 // parses reduce results and outpts them as a map
-func (ws *WorkerService) ReturnResults(redResults [][]byte) error {
+func (ms *MasterService) ReturnResults(redResults [][]byte) error {
 	hashMap := make(map[string]int)
 
 	for _, res := range redResults {
@@ -185,7 +184,7 @@ func (ws *WorkerService) ReturnResults(redResults [][]byte) error {
 	return nil
 }
 
-func (ws *WorkerService) SplitFile(filename string, parts int) ([]io.Reader, error) {
+func (ms *MasterService) SplitFile(filename string, parts int) ([]io.Reader, error) {
 	readers := []io.Reader{}
 
 	err := os.Mkdir("chunks", 0777)
