@@ -2,7 +2,6 @@ package v1
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -12,9 +11,11 @@ import (
 )
 
 type masterRoutes struct {
+	// service
 	srv service.Service
 
-	errChan chan<- error
+	// channel for receiving registration status
+	regChan <-chan bool
 }
 
 func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) {
@@ -24,23 +25,30 @@ func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) 
 
 	jsonBody, err := io.ReadAll(r.Body)
 	if err != nil {
-		mr.errChan <- fmt.Errorf("io.ReadAll: %v", err)
 		handleErr(err, w)
 		return
 	}
 
 	if err = json.Unmarshal(jsonBody, &req); err != nil {
-		mr.errChan <- fmt.Errorf("json.Unmarshall: %v", err)
 		handleErr(err, w)
 		return
 	}
 
 	if err := mr.srv.Register(req); err != nil {
-		mr.errChan <- fmt.Errorf("mr.srv.Register: %v", err)
 		handleErr(err, w)
 		return
 	}
 
-	w.WriteHeader(200)
-	w.Write([]byte("registered"))
+	// waiting for all workers to announce themselves
+	// if the amount of announced workers is not sufficient - the request is rejected
+	// else - accepted
+	registered := <-mr.regChan
+	if registered {
+		w.WriteHeader(200)
+		w.Write([]byte("registered"))
+	} else {
+		w.WriteHeader(500)
+		w.Write([]byte("couldn't collect enough workers in time"))
+	}
+
 }

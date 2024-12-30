@@ -17,13 +17,17 @@ func Run() error {
 	syscall.Umask(0)
 
 	ctx := context.Background()
-	errChan := make(chan error)
 
-	srv := service.NewMasterService(*mapreduce.DefaultConfig, http.DefaultClient)
+	conf := mapreduce.DefaultConfig
+
+	errChan := make(chan error)
+	regChan := make(chan bool, conf.Mappers+conf.Reducers)
+
+	srv := service.NewMasterService(conf, http.DefaultClient)
 
 	r := chi.NewRouter()
-	v1.NewController(r, srv, errChan)
+	v1.NewController(r, srv, regChan)
 
-	go srv.HandleWorkers(errChan)
+	go srv.HandleWorkers(errChan, regChan)
 	return httpserver.New(r).Run(ctx, errChan)
 }

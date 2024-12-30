@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewController(r chi.Router, srv service.Service, errChan chan<- error) {
+func NewController(r chi.Router, srv service.Service, regChan <-chan bool) {
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("pong"))
@@ -15,7 +15,7 @@ func NewController(r chi.Router, srv service.Service, errChan chan<- error) {
 
 	rs := &masterRoutes{
 		srv:     srv,
-		errChan: errChan,
+		regChan: regChan,
 	}
 
 	r.Post("/register", rs.registerWorkers)

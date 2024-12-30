@@ -41,8 +41,10 @@ type MasterService struct {
 	// channel for signaling that worker collection should start
 	startChan chan struct{}
 
+	// Once object for initiating registration once in concurrent environment
 	once sync.Once
 
+	// config
 	conf mapreduce.Config
 }
 
@@ -69,6 +71,9 @@ func (ms *MasterService) Register(req mapreduce.WorkerRegisterRequest) error {
 		ms.startChan <- struct{}{}
 	})
 
+	// assign a role for each worker (round robin)
+	// each odd worker - is a mapper
+	// each even worker - is a reducer
 	cur := ms.cnt.Add(1)
 	if cur%2 == 0 {
 		ms.mapMu.Lock()
@@ -80,23 +85,25 @@ func (ms *MasterService) Register(req mapreduce.WorkerRegisterRequest) error {
 		ms.redMu.Unlock()
 	}
 
-	fmt.Println(ms.mapperAddrs, ms.reducerAddrs)
-
 	return nil
 }
 
 // Handle registered workers
-func (ms *MasterService) HandleWorkers(errChan chan<- error) {
+func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool) {
 	// waiting for first request to hit
 	<-ms.startChan
-	fmt.Println("here")
 
 	total := ms.conf.Mappers + ms.conf.Reducers
 	timer := time.NewTimer(ms.conf.RegisterTimeout)
 	for cnt := ms.cnt.Load(); cnt != int64(total); cnt = ms.cnt.Load() {
 		select {
 		case <-timer.C:
-			errChan <- fmt.Errorf("expected %v workers, connected: %v", total, cnt)
+			// sending rejection responses for all pending registration requests
+			for range cnt {
+				regChan <- true
+			}
+			// shutting down master node
+			// errChan <- fmt.Errorf("expected %v workers, connected: %v", total, cnt)
 			return
 		default:
 			log.Println("connected:", cnt)
@@ -104,6 +111,12 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error) {
 		}
 	}
 	log.Println("all workers connected")
+
+	// sending confirmation responses for all pending registration requests
+	for range total {
+		regChan <- true
+	}
+	return
 
 	// split current file into parts = amount of workers
 	files, err := ms.SplitFile("file.txt", ms.conf.Mappers)
@@ -163,7 +176,6 @@ func (ms *MasterService) ReturnResults(redResults [][]byte) error {
 	for _, res := range redResults {
 		sliceRes := []string{}
 		json.Unmarshal(res, &sliceRes)
-		fmt.Println(sliceRes)
 
 		for _, el := range sliceRes {
 			elSplit := strings.Split(el, ":")
@@ -181,6 +193,7 @@ func (ms *MasterService) ReturnResults(redResults [][]byte) error {
 		}
 	}
 
+	log.Println("result:", hashMap)
 	return nil
 }
 

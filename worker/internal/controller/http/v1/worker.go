@@ -19,15 +19,15 @@ type workerRoutes struct {
 func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 	res, err := wr.srv.Map(r.Body)
 	if err != nil {
-		wr.errChan <- err
 		handleErr(err, w)
+		wr.errChan <- err
 		return
 	}
 
 	json, err := json.Marshal(res)
 	if err != nil {
-		wr.errChan <- err
 		handleErr(err, w)
+		wr.errChan <- err
 		return
 	}
 
@@ -38,30 +38,30 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 	bytesBody, err := io.ReadAll(r.Body)
 	if err != nil {
-		wr.errChan <- fmt.Errorf("io.ReadAll: %v", err)
 		handleErr(err, w)
+		wr.errChan <- fmt.Errorf("io.ReadAll: %v", err)
 		return
 	}
 
-	var mapResult []mapreduce.MapResult[string, int]
+	var mapResult mapreduce.MyMapResult
 
 	if err := json.Unmarshal(bytesBody, &mapResult); err != nil {
-		wr.errChan <- fmt.Errorf("json.Unmarshall: %v", err)
 		handleErr(err, w)
+		wr.errChan <- fmt.Errorf("json.Unmarshall: %v", err)
 		return
 	}
 
 	res, err := wr.srv.Reduce(mapResult)
 	if err != nil {
-		wr.errChan <- fmt.Errorf("reduceFunc: %v", err)
 		handleErr(err, w)
+		wr.errChan <- fmt.Errorf("reduceFunc: %v", err)
 		return
 	}
 
 	jsonRes, err := json.Marshal(res)
 	if err != nil {
-		wr.errChan <- fmt.Errorf("json.Marshall: %v", err)
 		handleErr(err, w)
+		wr.errChan <- fmt.Errorf("json.Marshall: %v", err)
 		return
 	}
 

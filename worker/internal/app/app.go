@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
 	v1 "github.com/cutlery47/map-reduce/worker/internal/controller/http/v1"
@@ -16,13 +15,15 @@ import (
 
 func Run() error {
 	ctx := context.Background()
+
+	// channel for signaling that http server has been set up
 	readyChan := make(chan struct{})
+	// channel for passing errors
 	errChan := make(chan error)
+	// channel for ending worker
+	endChan := make(chan struct{})
 
-	cl := http.DefaultClient
-	cl.Timeout = 3 * time.Second
-
-	srv := service.NewWorkerService(cl, *mapreduce.DefaultConfig)
+	srv := service.NewWorkerService(http.DefaultClient, mapreduce.DefaultConfig, endChan)
 
 	r := chi.NewRouter()
 	v1.NewController(r, srv, errChan)
@@ -34,5 +35,5 @@ func Run() error {
 	}
 
 	go srv.SendRegister(ctx, listener.Addr().(*net.TCPAddr).Port, readyChan, errChan)
-	return httpserver.New(r).Run(ctx, listener, readyChan, errChan)
+	return httpserver.New(r).Run(ctx, listener, readyChan, errChan, endChan)
 }

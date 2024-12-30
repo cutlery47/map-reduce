@@ -12,11 +12,11 @@ type Config struct {
 	RequestTimeout  time.Duration
 }
 
-var DefaultConfig = &Config{
-	Mappers:  1,
-	Reducers: 1,
+var DefaultConfig = Config{
+	Mappers:  2,
+	Reducers: 0,
 
-	RegisterTimeout: 10 * time.Second,
+	RegisterTimeout: 5 * time.Second,
 	CollectTimeout:  1 * time.Second,
 	ReadyTimeout:    5 * time.Second,
 	RequestTimeout:  3 * time.Second,

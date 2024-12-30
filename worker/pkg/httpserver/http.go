@@ -42,7 +42,7 @@ func New(handler http.Handler) *Server {
 	return serv
 }
 
-func (s *Server) Run(ctx context.Context, listener net.Listener, readyChan chan<- struct{}, errChan <-chan error) error {
+func (s *Server) Run(ctx context.Context, listener net.Listener, readyChan chan<- struct{}, errChan <-chan error, endChan <-chan struct{}) error {
 	log.Println(fmt.Sprintf("running http Server on %v", s.Server.Addr))
 
 	go func() {
@@ -59,12 +59,13 @@ func (s *Server) Run(ctx context.Context, listener net.Listener, readyChan chan<
 
 	// waiting for either kernel signal or app signal
 	select {
+	case <-endChan:
 	case <-sigChan:
 	case err := <-errChan:
 		log.Println("error:", err)
 	}
 
-	log.Println("Shutting down http Server")
+	log.Println("shutting down http-server")
 
 	ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
 	defer cancel()

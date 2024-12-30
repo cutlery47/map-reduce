@@ -3,7 +3,6 @@ package mapreduce
 import (
 	"fmt"
 	"io"
-	"log"
 	"strings"
 
 	"github.com/cutlery47/map-reduce/mapreduce/internal"
@@ -34,8 +33,6 @@ type MyMapResult []MapResult[string, int]
 type MyRedResult []string
 
 var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], error) {
-	log.Println("in map")
-
 	res := []MapResult[string, int]{}
 
 	raw, err := io.ReadAll(input)
@@ -57,8 +54,6 @@ var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], er
 }
 
 var MyReduce Reduce[string, int, string] = func(res []MapResult[string, int]) ([]string, error) {
-	log.Println("in reduce")
-
 	reducerRes := []string{}
 
 	freq := map[string]int{}

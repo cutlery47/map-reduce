@@ -25,26 +25,38 @@ type WorkerService struct {
 	// client for contacting master node
 	cl *http.Client
 
+	// channel for signaling that the worker has finished execution
+	endChan chan<- struct{}
+
+	// config
 	conf mapreduce.Config
 }
 
-func NewWorkerService(cl *http.Client, conf mapreduce.Config) *WorkerService {
+func NewWorkerService(cl *http.Client, conf mapreduce.Config, endChan chan<- struct{}) *WorkerService {
 	return &WorkerService{
-		cl:   cl,
-		conf: conf,
+		cl:      cl,
+		conf:    conf,
+		endChan: endChan,
 	}
 }
 
 func (ws *WorkerService) Map(reader io.Reader) (interface{}, error) {
+	log.Println("in map")
+
 	mapResult, err := mapFunc(reader)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Println("finished map")
+	ws.endChan <- struct{}{}
+
 	return mapResult, nil
 }
 
 func (ws *WorkerService) Reduce(result interface{}) (interface{}, error) {
+	log.Println("in reduce")
+
 	mapResult, ok := result.(mapreduce.MyMapResult)
 	if !ok {
 		return nil, fmt.Errorf("map result incompatible with reduce func")
@@ -54,6 +66,9 @@ func (ws *WorkerService) Reduce(result interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Println("finished reduce")
+	ws.endChan <- struct{}{}
 
 	return redResult, nil
 }
@@ -80,19 +95,21 @@ func (ws *WorkerService) SendRegister(ctx context.Context, port int, readyChan <
 	}
 	jsonReader := bytes.NewReader(jsonBody)
 
-	reqCtx, cancel := context.WithTimeout(ctx, ws.conf.RequestTimeout)
-	defer cancel()
-
-	// sending registration request
-	req, err := http.NewRequestWithContext(reqCtx, "POST", "http://localhost:8080/register", jsonReader)
+	// creating registration request
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8080/register", jsonReader)
 	if err != nil {
 		errChan <- fmt.Errorf("http.NewRequestWithContext: %v", err)
 		return
 	}
 
+	req.Close = true
+
+	// sending req
 	res, err := ws.cl.Do(req)
+	log.Println("res:", res)
+	log.Println("err:", err)
 	if err != nil {
-		errChan <- fmt.Errorf("http.Get: %v", err)
+		errChan <- fmt.Errorf("ws.cl.Do: %v", err)
 		return
 	}
 	defer res.Body.Close()
@@ -103,5 +120,8 @@ func (ws *WorkerService) SendRegister(ctx context.Context, port int, readyChan <
 		return
 	}
 
-	log.Println("master resonse:", string(resBody))
+	if res.Status == "500" {
+		errChan <- fmt.Errorf("%v", string(resBody))
+		return
+	}
 }
