@@ -94,21 +94,19 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 	<-ms.startChan
 
 	total := ms.conf.Mappers + ms.conf.Reducers
-	timer := time.NewTimer(ms.conf.RegisterTimeout)
+	deadline := time.Now().Add(ms.conf.RegisterDuration)
+
 	for cnt := ms.cnt.Load(); cnt != int64(total); cnt = ms.cnt.Load() {
-		select {
-		case <-timer.C:
-			// sending rejection responses for all pending registration requests
+		if time.Now().After(deadline) {
 			for range cnt {
-				regChan <- true
+				regChan <- false
 			}
-			// shutting down master node
-			// errChan <- fmt.Errorf("expected %v workers, connected: %v", total, cnt)
+			errChan <- fmt.Errorf("expected %v workers, connected: %v", total, cnt)
 			return
-		default:
-			log.Println("connected:", cnt)
-			time.Sleep(ms.conf.CollectTimeout)
 		}
+
+		log.Println("connected:", cnt)
+		time.Sleep(ms.conf.CollectTimeout)
 	}
 	log.Println("all workers connected")
 
@@ -116,7 +114,6 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 	for range total {
 		regChan <- true
 	}
-	return
 
 	// split current file into parts = amount of workers
 	files, err := ms.SplitFile("file.txt", ms.conf.Mappers)

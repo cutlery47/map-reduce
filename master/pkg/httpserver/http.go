@@ -15,7 +15,6 @@ import (
 const (
 	defaultAdress          = "0.0.0.0:8080"
 	defaultReadTimeout     = 3 * time.Second
-	defaultWriteTimeout    = 3 * time.Second
 	defaultShutdownTimeout = 3 * time.Second
 )
 
@@ -27,10 +26,9 @@ type Server struct {
 
 func New(handler http.Handler) *Server {
 	httpserv := &http.Server{
-		Handler:      handler,
-		ReadTimeout:  defaultReadTimeout,
-		WriteTimeout: defaultWriteTimeout,
-		Addr:         defaultAdress,
+		Handler:     handler,
+		ReadTimeout: defaultReadTimeout,
+		Addr:        defaultAdress,
 	}
 
 	serv := &Server{

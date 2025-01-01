@@ -102,26 +102,15 @@ func (ws *WorkerService) SendRegister(ctx context.Context, port int, readyChan <
 		return
 	}
 
-	req.Close = true
-
 	// sending req
 	res, err := ws.cl.Do(req)
-	log.Println("res:", res)
-	log.Println("err:", err)
 	if err != nil {
 		errChan <- fmt.Errorf("ws.cl.Do: %v", err)
 		return
 	}
-	defer res.Body.Close()
 
-	resBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		errChan <- fmt.Errorf("io.ReadAll: %v", err)
-		return
-	}
-
-	if res.Status == "500" {
-		errChan <- fmt.Errorf("%v", string(resBody))
+	if res.StatusCode == 500 {
+		errChan <- fmt.Errorf("couldn't register on master node")
 		return
 	}
 }

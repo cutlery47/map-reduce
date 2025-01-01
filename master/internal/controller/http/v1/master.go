@@ -2,6 +2,7 @@ package v1
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -51,4 +52,5 @@ func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) 
 		w.Write([]byte("couldn't collect enough workers in time"))
 	}
 
+	fmt.Println("sent response")
 }
