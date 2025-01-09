@@ -25,7 +25,7 @@ func Run() error {
 	// channel for signaling that a new job was received
 	recvChan := make(chan struct{})
 
-	srv := service.NewWorkerService(http.DefaultClient, mapreduce.DefaultConfig, endChan, recvChan)
+	srv := service.NewWorkerService(http.DefaultClient, mapreduce.KubernetesConfig, endChan, recvChan)
 
 	r := chi.NewRouter()
 	v1.NewController(r, srv, errChan, recvChan)

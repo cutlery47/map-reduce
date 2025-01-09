@@ -98,8 +98,10 @@ func (ws *WorkerService) SendRegister(ctx context.Context, port int, readyChan <
 	}
 	jsonReader := bytes.NewReader(jsonBody)
 
+	addr := fmt.Sprintf("http://%v:%v/register", ws.conf.MasterHost, ws.conf.MasterPort)
+
 	// creating registration request
-	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8080/register", jsonReader)
+	req, err := http.NewRequestWithContext(ctx, "POST", addr, jsonReader)
 	if err != nil {
 		errChan <- fmt.Errorf("http.NewRequestWithContext: %v", err)
 		return

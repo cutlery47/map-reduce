@@ -3,6 +3,11 @@ package mapreduce
 import "time"
 
 type Config struct {
+	// master host
+	MasterHost string
+	// master pod
+	MasterPort string
+
 	// amount of mappers
 	Mappers int
 	// amount of reducers
@@ -25,13 +30,33 @@ type Config struct {
 	WorkerTimeout time.Duration
 }
 
-var DefaultConfig = Config{
+var LocalConfig = Config{
+	MasterHost: "localhost",
+	MasterPort: "8080",
+
 	Mappers:  1,
 	Reducers: 1,
 
 	FileLocation:   "$HOME/mapreduce/file.txt",
 	ChunkLocation:  "$HOME/mapreduce/chunks",
 	ResultLocation: "$HOME/mapreduce/results",
+
+	RegisterDuration: 10 * time.Second,
+	CollectTimeout:   1 * time.Second,
+	ReadyTimeout:     5 * time.Second,
+	WorkerTimeout:    10 * time.Second,
+}
+
+var KubernetesConfig = Config{
+	MasterHost: "master-service",
+	MasterPort: "30001",
+
+	Mappers:  1,
+	Reducers: 1,
+
+	FileLocation:   "/mapreduce/file.txt",
+	ChunkLocation:  "/mapreduce/chunks",
+	ResultLocation: "/mapreduce/results",
 
 	RegisterDuration: 10 * time.Second,
 	CollectTimeout:   1 * time.Second,

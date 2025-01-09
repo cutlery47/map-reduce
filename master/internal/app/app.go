@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"syscall"
 
@@ -17,7 +18,19 @@ func Run() error {
 	syscall.Umask(0)
 
 	ctx := context.Background()
-	conf := mapreduce.DefaultConfig
+	conf := mapreduce.KubernetesConfig
+
+	if conf.Mappers != conf.Reducers {
+		return errors.New("amount of mappers should be equal to the amount of reducers")
+	}
+
+	if conf.Mappers == 0 {
+		return errors.New("mappers amount should be > 0")
+	}
+
+	if conf.Reducers == 0 {
+		return errors.New("reducers amount should be > 0")
+	}
 
 	errChan := make(chan error)
 	regChan := make(chan bool, conf.Mappers+conf.Reducers)
