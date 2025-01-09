@@ -2,16 +2,10 @@ package service
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"os/exec"
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -116,7 +110,7 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 	}
 
 	// split current file into parts = amount of workers
-	files, err := ms.SplitFile("file.txt", ms.conf.Mappers)
+	files, err := splitFile(ms.conf.FileLocation, ms.conf.ChunkLocation, ms.conf.ResultLocation, ms.conf.Mappers)
 	if err != nil {
 		errChan <- fmt.Errorf("SplitFile: %v", err)
 		return
@@ -161,76 +155,16 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 		redResults = append(redResults, body)
 	}
 
-	// return and shutdown
-	err = ms.ReturnResults(redResults)
+	for i, res := range redResults {
+		fileName := fmt.Sprintf("res_%v", i)
+		if err := execCreateAndWriteFile(fileName, ms.conf.ResultLocation, res); err != nil {
+			errChan <- err
+			return
+		}
+	}
+
+	// shutdown signal
 	errChan <- err
-}
-
-// parses reduce results and outpts them as a map
-func (ms *MasterService) ReturnResults(redResults [][]byte) error {
-	hashMap := make(map[string]int)
-
-	for _, res := range redResults {
-		sliceRes := []string{}
-		json.Unmarshal(res, &sliceRes)
-
-		for _, el := range sliceRes {
-			elSplit := strings.Split(el, ":")
-			key := elSplit[0]
-			val, err := strconv.Atoi(elSplit[1])
-			if err != nil {
-				return err
-			}
-
-			if v, ok := hashMap[key]; !ok {
-				hashMap[key] = val
-			} else {
-				hashMap[key] = v + val
-			}
-		}
-	}
-
-	log.Println("result:", hashMap)
-	return nil
-}
-
-func (ms *MasterService) SplitFile(filename string, parts int) ([]io.Reader, error) {
-	readers := []io.Reader{}
-
-	err := os.Mkdir("chunks", 0777)
-	if err != nil {
-		if !errors.Is(err, os.ErrExist) {
-			return nil, fmt.Errorf("os.Mkdir: %v", err)
-		}
-	}
-
-	bash := "split"
-	arg0, arg1 := "-n", strconv.Itoa(parts)
-	arg2 := "-d"
-	arg3, arg4 := "file.txt", "chunks/"
-
-	cmd := exec.Command(bash, arg0, arg1, arg2, arg3, arg4)
-	cmd.Stderr = os.Stdin
-	cmd.Stdout = os.Stdout
-	if err := cmd.Run(); err != nil {
-		return nil, err
-	}
-
-	chunks, err := os.ReadDir("chunks")
-	if err != nil {
-		return nil, fmt.Errorf("os.ReadDir: %v", err)
-	}
-
-	for _, chunk := range chunks {
-		fd, err := os.Open(fmt.Sprintf("chunks/%v", chunk.Name()))
-		if err != nil {
-			return nil, err
-		}
-
-		readers = append(readers, fd)
-	}
-
-	return readers, nil
 }
 
 type addr struct {

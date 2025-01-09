@@ -17,7 +17,6 @@ func Run() error {
 	syscall.Umask(0)
 
 	ctx := context.Background()
-
 	conf := mapreduce.DefaultConfig
 
 	errChan := make(chan error)
