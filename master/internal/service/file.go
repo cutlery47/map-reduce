@@ -70,8 +70,6 @@ func execCmd(name string, args ...string) error {
 	cmd.Stderr = os.Stdin
 	cmd.Stdout = os.Stdout
 
-	fmt.Println("cmd: ", cmd)
-
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cmd.Run: %v", err)
 	}

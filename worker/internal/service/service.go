@@ -27,16 +27,19 @@ type WorkerService struct {
 
 	// channel for signaling that the worker has finished execution
 	endChan chan<- struct{}
+	// channel for checking that worker has received a job from master
+	recvChan <-chan struct{}
 
 	// config
 	conf mapreduce.Config
 }
 
-func NewWorkerService(cl *http.Client, conf mapreduce.Config, endChan chan<- struct{}) *WorkerService {
+func NewWorkerService(cl *http.Client, conf mapreduce.Config, endChan chan<- struct{}, recvChan <-chan struct{}) *WorkerService {
 	return &WorkerService{
-		cl:      cl,
-		conf:    conf,
-		endChan: endChan,
+		cl:       cl,
+		conf:     conf,
+		endChan:  endChan,
+		recvChan: recvChan,
 	}
 }
 
@@ -113,4 +116,18 @@ func (ws *WorkerService) SendRegister(ctx context.Context, port int, readyChan <
 		errChan <- fmt.Errorf("couldn't register on master node")
 		return
 	}
+
+	// waiting for new jobs
+	// terminate worker if no jobs were received
+	go func() {
+		timer := time.NewTimer(ws.conf.WorkerTimeout)
+
+		select {
+		case <-ws.recvChan:
+			return
+		case <-timer.C:
+			errChan <- fmt.Errorf("didn't receive any jobs")
+			return
+		}
+	}()
 }

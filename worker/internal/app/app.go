@@ -22,11 +22,13 @@ func Run() error {
 	errChan := make(chan error)
 	// channel for ending worker
 	endChan := make(chan struct{})
+	// channel for signaling that a new job was received
+	recvChan := make(chan struct{})
 
-	srv := service.NewWorkerService(http.DefaultClient, mapreduce.DefaultConfig, endChan)
+	srv := service.NewWorkerService(http.DefaultClient, mapreduce.DefaultConfig, endChan, recvChan)
 
 	r := chi.NewRouter()
-	v1.NewController(r, srv, errChan)
+	v1.NewController(r, srv, errChan, recvChan)
 
 	// running http server on random available port
 	listener, err := net.Listen("tcp", ":0")

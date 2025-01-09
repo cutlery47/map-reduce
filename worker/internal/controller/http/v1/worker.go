@@ -13,10 +13,16 @@ import (
 type workerRoutes struct {
 	srv service.Service
 
+	// channel for signaling that the worker has finished execution
 	errChan chan<- error
+	// channel for signaling that worker has received a job from master
+	recvChan chan<- struct{}
 }
 
 func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
+	// signaling that a new job has been received
+	wr.recvChan <- struct{}{}
+
 	res, err := wr.srv.Map(r.Body)
 	if err != nil {
 		handleErr(err, w)
@@ -36,6 +42,9 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
+	// signaling that a new job has been received
+	wr.recvChan <- struct{}{}
+
 	bytesBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		handleErr(err, w)
