@@ -1,7 +1,9 @@
-FROM golang:1.23.3-alpine3.20
+FROM golang:1.23.3
 
 COPY /master /master
 COPY /mapreduce /mapreduce
+
+COPY /master/file.txt /files/
 
 WORKDIR /mapreduce
 RUN go mod download && go mod verify

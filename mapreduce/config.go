@@ -49,14 +49,14 @@ var LocalConfig = Config{
 
 var KubernetesConfig = Config{
 	MasterHost: "master-service",
-	MasterPort: "30001",
+	MasterPort: "8080",
 
 	Mappers:  1,
 	Reducers: 1,
 
-	FileLocation:   "/mapreduce/file.txt",
-	ChunkLocation:  "/mapreduce/chunks",
-	ResultLocation: "/mapreduce/results",
+	FileLocation:   "/files/file.txt",
+	ChunkLocation:  "/files/chunks",
+	ResultLocation: "/files/results",
 
 	RegisterDuration: 10 * time.Second,
 	CollectTimeout:   1 * time.Second,

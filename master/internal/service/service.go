@@ -163,6 +163,7 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 		}
 	}
 
+	time.Sleep(1 * time.Hour)
 	// shutdown signal
 	errChan <- err
 }

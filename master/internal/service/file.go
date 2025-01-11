@@ -17,10 +17,12 @@ func splitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error)
 		return nil, fmt.Errorf("execMkdirWithParent: %v", err)
 	}
 
+	// creating results dir
 	if err := execMkdirWithParent(resultDir); err != nil {
 		return nil, fmt.Errorf("execMkdirWithParent: %v", err)
 	}
 
+	// splitting file into chunks in chunk dir
 	if err := execSplitFile(file, chunkDir, parts); err != nil {
 		return nil, fmt.Errorf("execSplitFile: %v", err)
 	}
@@ -31,6 +33,7 @@ func splitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error)
 		return nil, fmt.Errorf("os.ReadDir: %v", err)
 	}
 
+	// getting each chunk's fd
 	for _, chunk := range chunks {
 		path := fmt.Sprintf("%v/%v", chunkDir, chunk.Name())
 		fd, err := os.Open(os.ExpandEnv(path))
@@ -67,7 +70,7 @@ func execCreateAndWriteFile(name, dir string, data []byte) error {
 
 func execCmd(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
-	cmd.Stderr = os.Stdin
+	cmd.Stderr = os.Stdout
 	cmd.Stdout = os.Stdout
 
 	if err := cmd.Run(); err != nil {

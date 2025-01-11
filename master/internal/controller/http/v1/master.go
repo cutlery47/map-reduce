@@ -11,7 +11,6 @@ import (
 )
 
 type masterRoutes struct {
-	// service
 	srv service.Service
 
 	// channel for receiving registration status
@@ -19,9 +18,7 @@ type masterRoutes struct {
 }
 
 func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) {
-	req := mapreduce.WorkerRegisterRequest{
-		Host: strings.Split(r.RemoteAddr, ":")[0],
-	}
+	var req mapreduce.WorkerRegisterRequest
 
 	jsonBody, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -34,6 +31,7 @@ func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	req.Host = strings.Split(r.RemoteAddr, ":")[0]
 	if err := mr.srv.Register(req); err != nil {
 		handleErr(err, w)
 		return
