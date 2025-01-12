@@ -10,8 +10,16 @@ spec:
     - name: master-container
       image: cutlery47/master-image:latest
       ports:
-        - containerPort: 8080
-          name: master-port
+        - name: master-port
+          containerPort: 8080
+      volumeMounts:
+        - name: file-volume
+          mountPath: /files
+  volumes:
+    - name: file-volume
+      hostPath:
+        path: /files
+        type: Directory
 ---
 apiVersion: v1
 kind: Service
@@ -44,5 +52,3 @@ spec:
       containers:
       - name: worker-container
         image: cutlery47/worker-image:latest
-
-

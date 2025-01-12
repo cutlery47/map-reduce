@@ -58,8 +58,8 @@ var KubernetesConfig = Config{
 	ChunkLocation:  "/files/chunks",
 	ResultLocation: "/files/results",
 
-	RegisterDuration: 10 * time.Second,
+	RegisterDuration: 30 * time.Second,
 	CollectTimeout:   1 * time.Second,
 	ReadyTimeout:     5 * time.Second,
-	WorkerTimeout:    10 * time.Second,
+	WorkerTimeout:    30 * time.Second,
 }

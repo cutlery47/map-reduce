@@ -163,7 +163,7 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 		}
 	}
 
-	time.Sleep(1 * time.Hour)
+	fmt.Println("finished map-reduce")
 	// shutdown signal
 	errChan <- err
 }

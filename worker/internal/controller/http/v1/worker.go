@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/worker/internal/service"
@@ -40,8 +39,6 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Write(json)
-
-	time.Sleep(1 * time.Hour)
 }
 
 func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +76,4 @@ func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Write(jsonRes)
-
-	time.Sleep(1 * time.Hour)
 }
