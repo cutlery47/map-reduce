@@ -3,6 +3,8 @@ FROM golang:1.23.3
 COPY /mapreduce /mapreduce
 COPY /master /master
 
+COPY .env /master/
+
 WORKDIR /mapreduce
 RUN go mod download && go mod verify
 

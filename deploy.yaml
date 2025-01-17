@@ -11,27 +11,30 @@ spec:
       image: cutlery47/master-image:latest
       ports:
         - name: master-port
-          containerPort: 8080
+          containerPort: ${MASTER_PORT}
       volumeMounts:
-        - name: file-volume
-          mountPath: /files
+        - name: ${VOLUME_NAME}
+          mountPath: ${MAPPED_FILE_DIRECTORY}
+      envFrom:
+        - configMapRef:
+            name: ${CONFIG_MAP_NAME}
   volumes:
-    - name: file-volume
+    - name: ${VOLUME_NAME}
       hostPath:
-        path: /files
+        path: ${MINIKUBE_FILE_DIRECTORY}
         type: Directory
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: master-service
+  name: ${MASTER_HOST}
 spec:
   type: NodePort
   selector: 
     app: master-app
   ports:
     - protocol: TCP
-      port: 8080
+      port: ${MASTER_PORT}
       targetPort: master-port
       nodePort: 30001
 ---
@@ -52,3 +55,29 @@ spec:
       containers:
       - name: worker-container
         image: cutlery47/worker-image:latest
+        env:
+          - name: MASTER_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: env-map
+                key: MASTER_HOST
+          - name: MASTER_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: env-map
+                key: MASTER_PORT
+          - name: SETUP_DURATION
+            valueFrom:
+              configMapKeyRef:
+                name: env-map
+                key: SETUP_DURATION
+          - name: COLLECT_INTERVAL
+            valueFrom:
+              configMapKeyRef:
+                name: env-map
+                key: COLLECT_INTERVAL
+          - name: WORKER_TIMEOUT
+            valueFrom:
+              configMapKeyRef:
+                name: env-map
+                key: WORKER_TIMEOUT

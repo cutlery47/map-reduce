@@ -18,10 +18,10 @@ type Config struct {
 	// amount of reducers
 	Reducers int `env:"REDUCERS"`
 
+	// directory to be mapped into master node
+	FileDirectory string `env:"MAPPED_FILE_DIRECTORY"`
 	// name of a file to be mapped
 	FileName string `env:"FILE_NAME"`
-	// directory to be mapped into master node
-	FileDirectory string `env:"FILE_DIRECTORY"`
 	// location of chunks inside file directory
 	ChunkDirectory string `env:"CHUNK_DIRECTORY"`
 	// location of results inside file directory
