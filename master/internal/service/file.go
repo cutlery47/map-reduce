@@ -28,7 +28,7 @@ func splitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error)
 	}
 
 	// collecting chunks
-	chunks, err := os.ReadDir(os.ExpandEnv(chunkDir))
+	chunks, err := os.ReadDir(chunkDir)
 	if err != nil {
 		return nil, fmt.Errorf("os.ReadDir: %v", err)
 	}
@@ -36,7 +36,7 @@ func splitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error)
 	// getting each chunk's fd
 	for _, chunk := range chunks {
 		path := fmt.Sprintf("%v/%v", chunkDir, chunk.Name())
-		fd, err := os.Open(os.ExpandEnv(path))
+		fd, err := os.Open(path)
 		if err != nil {
 			return nil, fmt.Errorf("os.Open: %v", err)
 		}
@@ -49,7 +49,7 @@ func splitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error)
 
 func execMkdirWithParent(dir string) error {
 	bash := "mkdir"
-	arg0, arg1 := "-p", os.ExpandEnv(dir)
+	arg0, arg1 := "-p", dir
 
 	return execCmd(bash, arg0, arg1)
 }
@@ -58,14 +58,13 @@ func execSplitFile(file, dir string, parts int) error {
 	bash := "split"
 	arg0, arg1 := "-n", strconv.Itoa(parts)
 	arg2 := "-d"
-	arg3, arg4 := os.ExpandEnv(file), os.ExpandEnv(dir+"/")
+	arg3, arg4 := file, dir+"/"
 
 	return execCmd(bash, arg0, arg1, arg2, arg3, arg4)
 }
 
 func execCreateAndWriteFile(name, dir string, data []byte) error {
-	expDir := os.ExpandEnv(dir)
-	return os.WriteFile(fmt.Sprintf("%v/%v", expDir, name), data, 0777)
+	return os.WriteFile(fmt.Sprintf("%v/%v", dir, name), data, 0777)
 }
 
 func execCmd(name string, args ...string) error {

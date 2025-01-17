@@ -2,7 +2,8 @@ package app
 
 import (
 	"context"
-	"log"
+	"flag"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -13,7 +14,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+var envLocation = flag.String("env", ".env", "specify env-file name and location")
+
 func Run() error {
+	flag.Parse()
 	ctx := context.Background()
 
 	// channel for signaling that http server has been set up
@@ -25,7 +29,12 @@ func Run() error {
 	// channel for signaling that a new job was received
 	recvChan := make(chan struct{})
 
-	srv := service.NewWorkerService(http.DefaultClient, mapreduce.KubernetesConfig, endChan, recvChan)
+	conf, err := mapreduce.NewConfig(*envLocation)
+	if err != nil {
+		return fmt.Errorf("error when reading config: %v", err)
+	}
+
+	srv := service.NewWorkerService(http.DefaultClient, conf, endChan, recvChan)
 
 	r := chi.NewRouter()
 	v1.NewController(r, srv, errChan, recvChan)
@@ -33,7 +42,7 @@ func Run() error {
 	// running http server on random available port
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		log.Fatal("net.Listen: ", err)
+		return fmt.Errorf("net.Listen: %v", err)
 	}
 
 	go srv.SendRegister(ctx, listener.Addr().(*net.TCPAddr).Port, readyChan, errChan)

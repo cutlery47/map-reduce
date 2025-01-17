@@ -1,65 +1,52 @@
 package mapreduce
 
-import "time"
+import (
+	"time"
+
+	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/joho/godotenv"
+)
 
 type Config struct {
 	// master host
-	MasterHost string
+	MasterHost string `env:"MASTER_HOST"`
 	// master pod
-	MasterPort string
+	MasterPort string `env:"MASTER_PORT"`
 
 	// amount of mappers
-	Mappers int
+	Mappers int `env:"MAPPERS"`
 	// amount of reducers
-	Reducers int
+	Reducers int `env:"REDUCERS"`
 
-	// location of a file to be mapped
-	FileLocation string
-	// location of chunksn
-	ChunkLocation string
-	// location of results
-	ResultLocation string
+	// name of a file to be mapped
+	FileName string `env:"FILE_NAME"`
+	// directory to be mapped into master node
+	FileDirectory string `env:"FILE_DIRECTORY"`
+	// location of chunks inside file directory
+	ChunkDirectory string `env:"CHUNK_DIRECTORY"`
+	// location of results inside file directory
+	ResultDirectory string `env:"RESULT_DIRECTORY"`
 
 	// time for all worker nodes to register on master
-	RegisterDuration time.Duration
-	// time in between which master node checks for registered worker nodes
-	CollectTimeout time.Duration
+	RegisterDuration time.Duration `env:"REGISTER_DURATION"`
 	// time for worker node to set up
-	ReadyTimeout time.Duration
+	SetupDuration time.Duration `env:"SETUP_DURATION"`
+	// time in between which master node checks for registered worker nodes
+	CollectInterval time.Duration `env:"COLLECT_INTERVAL"`
 	// time for worker to receive a new job
-	WorkerTimeout time.Duration
+	WorkerTimeout time.Duration `env:"WORKER_TIMEOUT"`
 }
 
-var LocalConfig = Config{
-	MasterHost: "localhost",
-	MasterPort: "8080",
+func NewConfig(envLocation string) (Config, error) {
+	conf := Config{}
 
-	Mappers:  1,
-	Reducers: 1,
+	if err := godotenv.Load(envLocation); err != nil {
+		return conf, err
+	}
 
-	FileLocation:   "$HOME/mapreduce/file.txt",
-	ChunkLocation:  "$HOME/mapreduce/chunks",
-	ResultLocation: "$HOME/mapreduce/results",
+	if err := cleanenv.ReadEnv(&conf); err != nil {
+		return conf, err
+	}
 
-	RegisterDuration: 10 * time.Second,
-	CollectTimeout:   1 * time.Second,
-	ReadyTimeout:     5 * time.Second,
-	WorkerTimeout:    10 * time.Second,
-}
-
-var KubernetesConfig = Config{
-	MasterHost: "master-service",
-	MasterPort: "8080",
-
-	Mappers:  1,
-	Reducers: 1,
-
-	FileLocation:   "/files/file.txt",
-	ChunkLocation:  "/files/chunks",
-	ResultLocation: "/files/results",
-
-	RegisterDuration: 30 * time.Second,
-	CollectTimeout:   1 * time.Second,
-	ReadyTimeout:     5 * time.Second,
-	WorkerTimeout:    30 * time.Second,
+	return conf, nil
 }

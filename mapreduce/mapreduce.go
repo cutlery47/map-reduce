@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/cutlery47/map-reduce/mapreduce/internal"
 )
 
 // KT - Map result key type
@@ -40,10 +38,7 @@ var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], er
 		return nil, err
 	}
 
-	text := string(raw)
-
-	words := strings.Split(internal.Strip(text), " ")
-	for _, word := range words {
+	for _, word := range strings.Split(string(raw), " ") {
 		res = append(res, MapResult[string, int]{
 			MappedKey:   word,
 			MappedValue: 1,

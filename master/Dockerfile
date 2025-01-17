@@ -1,7 +1,7 @@
 FROM golang:1.23.3
 
-COPY /master /master
 COPY /mapreduce /mapreduce
+COPY /master /master
 
 WORKDIR /mapreduce
 RUN go mod download && go mod verify

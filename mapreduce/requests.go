@@ -1,7 +1,5 @@
 package mapreduce
 
-// =================== DISTRIBUTION ========================
-
 var (
 	MapperDistr  string = "MAPPER"
 	ReducerDistr string = "REDUCER"

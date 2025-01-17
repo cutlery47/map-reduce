@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"net/http"
 	"syscall"
 
@@ -13,12 +15,19 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+var envLocation = flag.String("env", ".env", "specify env-file name and location")
+
 func Run() error {
 	// drop permission limit
 	syscall.Umask(0)
 
+	flag.Parse()
 	ctx := context.Background()
-	conf := mapreduce.KubernetesConfig
+
+	conf, err := mapreduce.NewConfig(*envLocation)
+	if err != nil {
+		return fmt.Errorf("error when reading config: %v", err)
+	}
 
 	if conf.Mappers != conf.Reducers {
 		return errors.New("amount of mappers should be equal to the amount of reducers")

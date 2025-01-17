@@ -79,7 +79,7 @@ func (ws *WorkerService) Reduce(result interface{}) (interface{}, error) {
 // Registering on master node
 func (ws *WorkerService) SendRegister(ctx context.Context, port int, readyChan <-chan struct{}, errChan chan<- error) {
 	// waiting for server setup
-	readyTimer := time.NewTimer(ws.conf.ReadyTimeout)
+	readyTimer := time.NewTimer(ws.conf.SetupDuration)
 	select {
 	case <-readyTimer.C:
 		errChan <- fmt.Errorf("server setup timed out")

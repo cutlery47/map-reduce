@@ -6,12 +6,18 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
 )
+
+type addr struct {
+	Port string
+	Host string
+}
 
 type Service interface {
 	Register(req mapreduce.WorkerRegisterRequest) error
@@ -100,7 +106,7 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 		}
 
 		log.Println("connected:", cnt)
-		time.Sleep(ms.conf.CollectTimeout)
+		time.Sleep(ms.conf.CollectInterval)
 	}
 	log.Println("all workers connected")
 
@@ -109,8 +115,14 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 		regChan <- true
 	}
 
+	var b strings.Builder
+
+	fileLocation := createNestedDirString(b, ms.conf.FileDirectory, ms.conf.FileName)
+	chunkLocation := createNestedDirString(b, ms.conf.FileDirectory, ms.conf.ChunkDirectory)
+	resultLocation := createNestedDirString(b, ms.conf.FileDirectory, ms.conf.ResultDirectory)
+
 	// split current file into parts = amount of workers
-	files, err := splitFile(ms.conf.FileLocation, ms.conf.ChunkLocation, ms.conf.ResultLocation, ms.conf.Mappers)
+	files, err := splitFile(fileLocation, chunkLocation, resultLocation, ms.conf.Mappers)
 	if err != nil {
 		errChan <- fmt.Errorf("SplitFile: %v", err)
 		return
@@ -157,7 +169,7 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 
 	for i, res := range redResults {
 		fileName := fmt.Sprintf("res_%v", i)
-		if err := execCreateAndWriteFile(fileName, ms.conf.ResultLocation, res); err != nil {
+		if err := execCreateAndWriteFile(fileName, resultLocation, res); err != nil {
 			errChan <- err
 			return
 		}
@@ -168,7 +180,13 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 	errChan <- err
 }
 
-type addr struct {
-	Port string
-	Host string
+func createNestedDirString(b strings.Builder, objs ...string) string {
+	b.Reset()
+
+	for _, obj := range objs {
+		b.WriteString(obj)
+		b.WriteRune('/')
+	}
+
+	return b.String()[:b.Len()-1]
 }
