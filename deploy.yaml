@@ -43,7 +43,7 @@ kind: Deployment
 metadata:
   name: worker-deployment
 spec:
-  replicas: 2
+  replicas: ${WORKERS}
   selector:
     matchLabels:
       app: worker

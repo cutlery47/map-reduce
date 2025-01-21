@@ -1,7 +1,7 @@
 export $(grep -v '^#' .env | xargs)
 
-kubectl create configmap env-map --from-env-file=.env
+minikube start
 
-envsubst < deploy.yaml | kubectl apply -f -
+minikube mount $LOCAL_FILE_DIRECTORY:$MINIKUBE_FILE_DIRECTORY
 
 unset $(grep -v '^#' .env | sed -E 's/(.*)=.*/\1/' | xargs)
