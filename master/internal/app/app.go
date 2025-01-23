@@ -24,7 +24,7 @@ func Run() error {
 	flag.Parse()
 	ctx := context.Background()
 
-	conf, err := mapreduce.NewConfig(*envLocation)
+	conf, err := mapreduce.NewMasterConfig(*envLocation)
 	if err != nil {
 		return fmt.Errorf("error when reading config: %v", err)
 	}
@@ -44,7 +44,10 @@ func Run() error {
 	errChan := make(chan error)
 	regChan := make(chan bool, conf.Mappers+conf.Reducers)
 
-	srv := service.NewMasterService(conf, http.DefaultClient)
+	srv, err := service.NewMasterService(conf, http.DefaultClient)
+	if err != nil {
+		return fmt.Errorf("service.NewMasterService: %v", err)
+	}
 
 	r := chi.NewRouter()
 	v1.NewController(r, srv, regChan)

@@ -1,91 +1,69 @@
 package service
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
 )
 
-type addr struct {
-	Port string
-	Host string
-}
-
 type Service interface {
 	Register(req mapreduce.WorkerRegisterRequest) error
+	HandleWorkers(errChan chan<- error, regChan chan<- bool)
 }
 
 type MasterService struct {
-	// http client for contacting workers
-	cl *http.Client
+	reg *registrar
+	tp  taskProducer
 
-	// slice of assigned mappers
-	mapperAddrs []addr
-	// slice of assigned reducers
-	reducerAddrs []addr
-
-	// atomic worker connection count
-	cnt atomic.Int64
-	// mutexes for restricting concurrent access to slices
-	mapMu *sync.Mutex
-	redMu *sync.Mutex
-
-	// channel for signaling that worker collection should start
-	startChan chan struct{}
+	// config
+	conf mapreduce.MasterConfig
 
 	// Once object for initiating registration once in concurrent environment
 	once sync.Once
-
-	// config
-	conf mapreduce.Config
+	// channel for signaling that worker collection should start
+	startChan chan struct{}
 }
 
-// MasterService constructor
-func NewMasterService(conf mapreduce.Config, cl *http.Client) *MasterService {
-	ms := &MasterService{
-		cl:           cl,
-		cnt:          atomic.Int64{},
-		mapperAddrs:  []addr{},
-		reducerAddrs: []addr{},
-		mapMu:        &sync.Mutex{},
-		redMu:        &sync.Mutex{},
-		conf:         conf,
-		once:         sync.Once{},
-		startChan:    make(chan struct{}),
+func NewMasterService(conf mapreduce.MasterConfig, cl *http.Client) (*MasterService, error) {
+	mapAddrs := []addr{}
+	redAddrs := []addr{}
+
+	reg := newRegistrar(conf.RegistrarConfig, &mapAddrs, &redAddrs)
+
+	var tp taskProducer
+
+	switch conf.ProducerType {
+	case "HTTP":
+		tp = NewHTTPTaskProducer(cl, &mapAddrs, &redAddrs)
+	case "RABBIT":
+		prod, err := NewRabbitTaskProducer(conf.ProducerConfig)
+		if err != nil {
+			return nil, fmt.Errorf("NewRabbitTaskProducer: %v", err)
+		}
+		tp = prod
+	default:
+		return nil, errors.New("undefined task producer")
 	}
 
-	return ms
+	return &MasterService{
+		reg:       reg,
+		tp:        tp,
+		conf:      conf,
+		once:      sync.Once{},
+		startChan: make(chan struct{}),
+	}, nil
 }
 
-// Registering incoming workers
 func (ms *MasterService) Register(req mapreduce.WorkerRegisterRequest) error {
 	ms.once.Do(func() {
 		ms.startChan <- struct{}{}
 	})
 
-	// assign a role for each worker (round robin)
-	// each odd worker - is a mapper
-	// each even worker - is a reducer
-	cur := ms.cnt.Add(1)
-	if cur%2 == 0 {
-		ms.mapMu.Lock()
-		ms.mapperAddrs = append(ms.mapperAddrs, addr{Port: req.Port, Host: req.Host})
-		ms.mapMu.Unlock()
-	} else {
-		ms.redMu.Lock()
-		ms.reducerAddrs = append(ms.reducerAddrs, addr{Port: req.Port, Host: req.Host})
-		ms.redMu.Unlock()
-	}
-
-	return nil
+	return ms.reg.register(req)
 }
 
 // Handle registered workers
@@ -93,25 +71,16 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 	// waiting for first request to hit
 	<-ms.startChan
 
-	total := ms.conf.Mappers + ms.conf.Reducers
-	deadline := time.Now().Add(ms.conf.RegisterDuration)
-
-	for cnt := ms.cnt.Load(); cnt != int64(total); cnt = ms.cnt.Load() {
-		if time.Now().After(deadline) {
-			for range cnt {
-				regChan <- false
-			}
-			errChan <- fmt.Errorf("expected %v workers, connected: %v", total, cnt)
-			return
+	cnt, err := ms.reg.collectWorkers(ms.conf.Mappers, ms.conf.Reducers)
+	if err != nil {
+		for range cnt {
+			regChan <- false
 		}
-
-		log.Println("connected:", cnt)
-		time.Sleep(ms.conf.CollectInterval)
+		errChan <- fmt.Errorf("ms.reg.collectWorkers: %v", err)
 	}
-	log.Println("all workers connected")
 
 	// sending confirmation responses for all pending registration requests
-	for range total {
+	for range cnt {
 		regChan <- true
 	}
 
@@ -128,45 +97,19 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 		return
 	}
 
-	var mapResults [][]byte
-	var redResults [][]byte
-
 	// Senging tasks to mappers
-	for i, addr := range ms.mapperAddrs {
-		res, err := ms.cl.Post(fmt.Sprintf("http://%v:%v/map", addr.Host, addr.Port), "text/plain", files[i])
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		// storing map results
-		mapResults = append(mapResults, body)
+	mapResults, err := ms.tp.produceMapperTasks(files)
+	if err != nil {
+		errChan <- fmt.Errorf("ms.sendMapperTasks: %v", err)
 	}
 
 	// Sending tasks to reducers
-	for i, addr := range ms.reducerAddrs {
-		res, err := ms.cl.Post(fmt.Sprintf("http://%v:%v/reduce", addr.Host, addr.Port), "application/json", bytes.NewReader(mapResults[i]))
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		// storing reduce results
-		redResults = append(redResults, body)
+	redResults, err := ms.tp.produceReducerTasks(mapResults)
+	if err != nil {
+		errChan <- fmt.Errorf("ms.sendReducerTasks: %v", err)
 	}
 
+	// Handling reducer results
 	for i, res := range redResults {
 		fileName := fmt.Sprintf("res_%v", i)
 		if err := execCreateAndWriteFile(fileName, resultLocation, res); err != nil {
@@ -189,4 +132,9 @@ func createNestedDirString(b strings.Builder, objs ...string) string {
 	}
 
 	return b.String()[:b.Len()-1]
+}
+
+type addr struct {
+	Port string
+	Host string
 }
