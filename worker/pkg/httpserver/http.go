@@ -45,6 +45,7 @@ func New(handler http.Handler, listener net.Listener, readyChan chan<- struct{},
 		listener:        listener,
 		readyChan:       readyChan,
 		errChan:         errChan,
+		endChan:         endChan,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
 

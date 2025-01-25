@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewController(r chi.Router, w core.Worker, errChan chan<- error, recvChan chan<- struct{}) {
+func NewController(r chi.Router, w core.Worker, errChan chan<- error, recvChan, endChan chan<- struct{}) {
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("pong"))
@@ -16,6 +16,7 @@ func NewController(r chi.Router, w core.Worker, errChan chan<- error, recvChan c
 	wr := &workerRoutes{
 		w:        w,
 		errChan:  errChan,
+		endChan:  endChan,
 		recvChan: recvChan,
 	}
 

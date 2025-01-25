@@ -3,6 +3,7 @@ package httpworker
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
@@ -29,12 +30,13 @@ func UsingHttpWorker(ctx context.Context, body mapreduce.WorkerRegisterRequest, 
 		// terminate worker if no jobs were received
 		go func() {
 			timer := time.NewTimer(taskDuration)
+			log.Println("waiting for tasks for:", taskDuration)
 
 			select {
 			case <-recvChan:
 				return
 			case <-timer.C:
-				errChan <- fmt.Errorf("didn't receive any jobs")
+				errChan <- fmt.Errorf("didn't receive any tasks")
 				return
 			}
 		}()

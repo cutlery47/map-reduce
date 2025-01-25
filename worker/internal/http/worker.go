@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
@@ -17,6 +18,8 @@ type workerRoutes struct {
 	errChan chan<- error
 	// channel for signaling that worker has received a job from master
 	recvChan chan<- struct{}
+	// channel for signaling that worker has finished handing its tasks
+	endChan chan<- struct{}
 }
 
 func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
@@ -37,8 +40,12 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println("sent response")
+
 	w.WriteHeader(200)
 	w.Write(json)
+
+	wr.endChan <- struct{}{}
 }
 
 func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
@@ -76,4 +83,6 @@ func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Write(jsonRes)
+
+	wr.endChan <- struct{}{}
 }

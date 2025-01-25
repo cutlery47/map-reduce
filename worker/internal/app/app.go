@@ -28,18 +28,16 @@ func Run() error {
 
 	// channel for passing errors
 	errChan := make(chan error)
-	// channel for ending worker
-	endChan := make(chan struct{})
 
 	// worker for handing mapping / reducing
-	dw := core.NewDefaultWorker(conf, endChan)
+	dw := core.NewDefaultWorker(conf)
 	// registrar for announcing worker to the master
 	dr := core.NewDefaultRegistrar(http.DefaultClient, errChan, conf.WorkerRegistrarConfig)
 
 	// run preferred worker based on producer type
 	switch conf.ProducerType {
 	case "HTTP":
-		return runHttp(dw, dr, errChan, endChan, conf)
+		return runHttp(dw, dr, errChan, conf)
 	case "QUEUE":
 		return runQueue(dw, dr, errChan, conf)
 	default:
@@ -48,13 +46,15 @@ func Run() error {
 }
 
 // run http-based worker
-func runHttp(w core.Worker, r core.Registrar, errChan chan error, endChan chan struct{}, conf mapreduce.WorkerConfig) error {
+func runHttp(w core.Worker, r core.Registrar, errChan chan error, conf mapreduce.WorkerConfig) error {
 	ctx := context.Background()
 
 	// channel for signaling that http server has been set up
 	readyChan := make(chan struct{})
 	// channel for signaling that a new job was received
 	recvChan := make(chan struct{})
+	// channel for signaling that worker has ended execution
+	endChan := make(chan struct{})
 
 	// running http server on random available port
 	listener, err := net.Listen("tcp", ":0")
@@ -64,7 +64,7 @@ func runHttp(w core.Worker, r core.Registrar, errChan chan error, endChan chan s
 
 	// creating http-controller for receiving tasks from master
 	rt := chi.NewRouter()
-	httpworker.NewController(rt, w, errChan, recvChan)
+	httpworker.NewController(rt, w, errChan, recvChan, endChan)
 
 	// announcing worker to master
 	body := mapreduce.WorkerRegisterRequest{Port: strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)}

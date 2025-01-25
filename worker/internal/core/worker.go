@@ -16,17 +16,13 @@ type Worker interface {
 }
 
 type DefaultWorker struct {
-	// channel for signaling that the worker has finished execution
-	endChan chan<- struct{}
-
 	// config
 	conf mapreduce.WorkerConfig
 }
 
-func NewDefaultWorker(conf mapreduce.WorkerConfig, endChan chan<- struct{}) *DefaultWorker {
+func NewDefaultWorker(conf mapreduce.WorkerConfig) *DefaultWorker {
 	return &DefaultWorker{
-		conf:    conf,
-		endChan: endChan,
+		conf: conf,
 	}
 }
 
@@ -39,7 +35,6 @@ func (dw *DefaultWorker) Map(reader io.Reader) (any, error) {
 	}
 
 	log.Println("finished map")
-	dw.endChan <- struct{}{}
 
 	return mapResult, nil
 }
@@ -58,7 +53,6 @@ func (dw *DefaultWorker) Reduce(result interface{}) (any, error) {
 	}
 
 	log.Println("finished reduce")
-	dw.endChan <- struct{}{}
 
 	return redResult, nil
 }
