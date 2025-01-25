@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
@@ -39,8 +38,6 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 		wr.errChan <- err
 		return
 	}
-
-	log.Println("sent response")
 
 	w.WriteHeader(200)
 	w.Write(json)

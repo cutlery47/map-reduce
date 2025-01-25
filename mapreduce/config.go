@@ -30,11 +30,6 @@ type MasterConfig struct {
 
 	ProducerType string `env:"PRODUCER_TYPE"`
 
-	// amount of mappers
-	Mappers int `env:"MAPPERS"`
-	// amount of reducers
-	Reducers int `env:"REDUCERS"`
-
 	// directory to be mapped into master node
 	FileDirectory string `env:"MAPPED_FILE_DIRECTORY"`
 	// name of a file to be mapped
@@ -46,6 +41,11 @@ type MasterConfig struct {
 }
 
 type MasterRegistrarConfig struct {
+	// amount of mappers
+	Mappers int `env:"MAPPERS"`
+	// amount of reducers
+	Reducers int `env:"REDUCERS"`
+
 	// time for all worker nodes to register on master
 	RegisterDuration time.Duration `env:"REGISTER_DURATION"`
 	// time in between which master node checks for registered worker nodes

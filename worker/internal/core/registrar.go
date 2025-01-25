@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
@@ -58,7 +59,8 @@ func (dr *DefaultRegistrar) SendRegister(ctx context.Context, body mapreduce.Wor
 	}
 
 	if res.StatusCode != 200 {
-		dr.errChan <- fmt.Errorf("couldn't register on master node")
+		errMsg, _ := io.ReadAll(res.Body)
+		dr.errChan <- fmt.Errorf("couldn't register on master node: %v", string(errMsg))
 		return
 	}
 }

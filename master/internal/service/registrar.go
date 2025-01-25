@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -12,7 +13,8 @@ import (
 
 type registrar struct {
 	// atomic worker connection count
-	cnt atomic.Int64
+	mapCnt atomic.Int64
+	redCnt atomic.Int64
 
 	mapAddrs *[]addr
 	redAddrs *[]addr
@@ -26,7 +28,8 @@ type registrar struct {
 
 func newRegistrar(conf mapreduce.MasterRegistrarConfig, mapAddrs, redAddrs *[]addr) *registrar {
 	return &registrar{
-		cnt:      atomic.Int64{},
+		mapCnt:   atomic.Int64{},
+		redCnt:   atomic.Int64{},
 		mapAddrs: mapAddrs,
 		redAddrs: redAddrs,
 		mapMu:    &sync.Mutex{},
@@ -37,28 +40,52 @@ func newRegistrar(conf mapreduce.MasterRegistrarConfig, mapAddrs, redAddrs *[]ad
 
 // Registering incoming workers
 func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) error {
-	// assign a role for each worker (round robin)
-	// each odd worker - is a mapper
-	// each even worker - is a reducer
-	cur := reg.cnt.Add(1)
-	if cur%2 == 0 {
+	// load amounts of currectly connected mappers and reducers
+	mappers := reg.mapCnt.Load()
+	reducers := reg.redCnt.Load()
+
+	// assign worker to mapper if possible
+	if mappers < int64(reg.conf.Mappers) {
+		// check if any concurrent goroutine has already updated mapper count
+		for mappers < int64(reg.conf.Mappers) && !reg.mapCnt.CompareAndSwap(mappers, mappers+1) {
+			// try again after timeout
+			time.Sleep(time.Millisecond)
+			mappers = reg.mapCnt.Load()
+		}
+
+		// add mapper address
 		reg.mapMu.Lock()
 		*reg.mapAddrs = append(*reg.mapAddrs, addr{Port: req.Port, Host: req.Host})
 		reg.mapMu.Unlock()
-	} else {
+
+		return nil
+	}
+
+	// assign worker to reducer if possible
+	if reducers < int64(reg.conf.Reducers) {
+		// check if any concurrent goroutine has already updated reducer count
+		for reducers < int64(reg.conf.Reducers) && !reg.redCnt.CompareAndSwap(reducers, reducers+1) {
+			// try again
+			time.Sleep(time.Millisecond)
+			reducers = reg.redCnt.Load()
+		}
+
+		// add reducer address
 		reg.redMu.Lock()
 		*reg.redAddrs = append(*reg.redAddrs, addr{Port: req.Port, Host: req.Host})
 		reg.redMu.Unlock()
+
+		return nil
 	}
 
-	return nil
+	return errors.New("received registration request from extra worker")
 }
 
 func (reg *registrar) collectWorkers(mappers, reducers int) (int, error) {
 	total := mappers + reducers
 	deadline := time.Now().Add(reg.conf.RegisterDuration)
 
-	for cnt := reg.cnt.Load(); cnt != int64(total); cnt = reg.cnt.Load() {
+	for cnt := reg.mapCnt.Load() + reg.redCnt.Load(); cnt != int64(total); cnt = reg.mapCnt.Load() + reg.redCnt.Load() {
 		if time.Now().After(deadline) {
 			return int(cnt), fmt.Errorf("expected %v workers, connected: %v", total, cnt)
 		}

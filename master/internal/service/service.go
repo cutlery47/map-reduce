@@ -77,6 +77,7 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 			regChan <- false
 		}
 		errChan <- fmt.Errorf("ms.reg.collectWorkers: %v", err)
+		return
 	}
 
 	// sending confirmation responses for all pending registration requests
@@ -101,12 +102,14 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 	mapResults, err := ms.tp.produceMapperTasks(files)
 	if err != nil {
 		errChan <- fmt.Errorf("ms.sendMapperTasks: %v", err)
+		return
 	}
 
 	// Sending tasks to reducers
 	redResults, err := ms.tp.produceReducerTasks(mapResults)
 	if err != nil {
 		errChan <- fmt.Errorf("ms.sendReducerTasks: %v", err)
+		return
 	}
 
 	// Handling reducer results
