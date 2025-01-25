@@ -23,10 +23,16 @@ const (
 type Server struct {
 	Server *http.Server
 
+	listener net.Listener
+
+	readyChan chan<- struct{}
+	errChan   <-chan error
+	endChan   <-chan struct{}
+
 	shutdownTimeout time.Duration
 }
 
-func New(handler http.Handler) *Server {
+func New(handler http.Handler, listener net.Listener, readyChan chan<- struct{}, errChan <-chan error, endChan <-chan struct{}) *Server {
 	httpserv := &http.Server{
 		Handler:      handler,
 		ReadTimeout:  defaultReadTimeout,
@@ -36,17 +42,20 @@ func New(handler http.Handler) *Server {
 
 	serv := &Server{
 		Server:          httpserv,
+		listener:        listener,
+		readyChan:       readyChan,
+		errChan:         errChan,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
 
 	return serv
 }
 
-func (s *Server) Run(ctx context.Context, listener net.Listener, readyChan chan<- struct{}, errChan <-chan error, endChan <-chan struct{}) error {
+func (s *Server) Run(ctx context.Context) error {
 	log.Println(fmt.Sprintf("running http Server on %v", s.Server.Addr))
 
 	go func() {
-		if err := s.Server.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
+		if err := s.Server.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 			log.Println("http Server error:", err)
 		}
 	}()
@@ -55,13 +64,13 @@ func (s *Server) Run(ctx context.Context, listener net.Listener, readyChan chan<
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// signaling that server has been set up
-	readyChan <- struct{}{}
+	s.readyChan <- struct{}{}
 
 	// waiting for either kernel signal or app signal
 	select {
-	case <-endChan:
+	case <-s.endChan:
 	case <-sigChan:
-	case err := <-errChan:
+	case err := <-s.errChan:
 		log.Println("error:", err)
 	}
 

@@ -26,7 +26,7 @@ func Run() error {
 
 	conf, err := mapreduce.NewMasterConfig(*envLocation)
 	if err != nil {
-		return fmt.Errorf("error when reading config: %v", err)
+		return fmt.Errorf("mareduce.NewMasterConfig: %v", err)
 	}
 
 	if conf.Mappers != conf.Reducers {

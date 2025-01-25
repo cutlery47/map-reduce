@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 )
 
 func splitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error) {
@@ -77,4 +78,15 @@ func execCmd(name string, args ...string) error {
 	}
 
 	return nil
+}
+
+func createNestedDirString(b strings.Builder, objs ...string) string {
+	b.Reset()
+
+	for _, obj := range objs {
+		b.WriteString(obj)
+		b.WriteRune('/')
+	}
+
+	return b.String()[:b.Len()-1]
 }

@@ -9,6 +9,15 @@ import (
 )
 
 type WorkerConfig struct {
+	WorkerRegistrarConfig
+
+	ProducerType string `env:"PRODUCER_TYPE"`
+}
+
+type WorkerRegistrarConfig struct {
+	MasterHost string `env:"MASTER_HOST"`
+	MasterPort string `env:"MASTER_PORT"`
+
 	// time for worker node to set up
 	SetupDuration time.Duration `env:"SETUP_DURATION"`
 	// time for worker to receive a new job
@@ -16,7 +25,7 @@ type WorkerConfig struct {
 }
 
 type MasterConfig struct {
-	RegistrarConfig
+	MasterRegistrarConfig
 	ProducerConfig
 
 	ProducerType string `env:"PRODUCER_TYPE"`
@@ -36,7 +45,7 @@ type MasterConfig struct {
 	ResultDirectory string `env:"RESULT_DIRECTORY"`
 }
 
-type RegistrarConfig struct {
+type MasterRegistrarConfig struct {
 	// time for all worker nodes to register on master
 	RegisterDuration time.Duration `env:"REGISTER_DURATION"`
 	// time in between which master node checks for registered worker nodes
@@ -44,6 +53,8 @@ type RegistrarConfig struct {
 }
 
 type ProducerConfig struct {
+	RabbitMapperPath  string `env:"RABBIT_MAPPER_PATH"`
+	RabbitReducerPath string `env:"RABBIT_REDUCER_PATH"`
 	RabbitConfig
 }
 
@@ -89,7 +100,7 @@ func readConfig(envLocation string, conf any) error {
 		return fmt.Errorf("godotenv.Load: %v", err)
 	}
 
-	if err := cleanenv.ReadEnv(&conf); err != nil {
+	if err := cleanenv.ReadEnv(conf); err != nil {
 		return fmt.Errorf("cleanenv.ReadEnv: %v", err)
 	}
 

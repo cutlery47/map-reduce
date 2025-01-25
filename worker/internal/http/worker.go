@@ -1,4 +1,4 @@
-package v1
+package httpworker
 
 import (
 	"encoding/json"
@@ -7,11 +7,11 @@ import (
 	"net/http"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
-	"github.com/cutlery47/map-reduce/worker/internal/service"
+	"github.com/cutlery47/map-reduce/worker/internal/core"
 )
 
 type workerRoutes struct {
-	srv service.Service
+	w core.Worker
 
 	// channel for signaling that the worker has finished execution
 	errChan chan<- error
@@ -23,7 +23,7 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 	// signaling that a new job has been received
 	wr.recvChan <- struct{}{}
 
-	res, err := wr.srv.Map(r.Body)
+	res, err := wr.w.Map(r.Body)
 	if err != nil {
 		handleErr(err, w)
 		wr.errChan <- err
@@ -60,7 +60,7 @@ func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := wr.srv.Reduce(mapResult)
+	res, err := wr.w.Reduce(mapResult)
 	if err != nil {
 		handleErr(err, w)
 		wr.errChan <- fmt.Errorf("reduceFunc: %v", err)

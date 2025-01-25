@@ -2,14 +2,16 @@ package app
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
-	v1 "github.com/cutlery47/map-reduce/worker/internal/controller/http/v1"
-	"github.com/cutlery47/map-reduce/worker/internal/service"
+	"github.com/cutlery47/map-reduce/worker/internal/core"
+	httpworker "github.com/cutlery47/map-reduce/worker/internal/http"
 	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
 	"github.com/go-chi/chi/v5"
 )
@@ -18,26 +20,41 @@ var envLocation = flag.String("env", ".env", "specify env-file name and location
 
 func Run() error {
 	flag.Parse()
-	ctx := context.Background()
 
-	// channel for signaling that http server has been set up
-	readyChan := make(chan struct{})
-	// channel for passing errors
-	errChan := make(chan error)
-	// channel for ending worker
-	endChan := make(chan struct{})
-	// channel for signaling that a new job was received
-	recvChan := make(chan struct{})
-
-	conf, err := mapreduce.NewConfig(*envLocation)
+	conf, err := mapreduce.NewWorkerConfig(*envLocation)
 	if err != nil {
 		return fmt.Errorf("error when reading config: %v", err)
 	}
 
-	srv := service.NewWorkerService(http.DefaultClient, conf, endChan, recvChan)
+	// channel for passing errors
+	errChan := make(chan error)
+	// channel for ending worker
+	endChan := make(chan struct{})
 
-	r := chi.NewRouter()
-	v1.NewController(r, srv, errChan, recvChan)
+	// worker for handing mapping / reducing
+	dw := core.NewDefaultWorker(conf, endChan)
+	// registrar for announcing worker to the master
+	dr := core.NewDefaultRegistrar(http.DefaultClient, errChan, conf.WorkerRegistrarConfig)
+
+	// run preferred worker based on producer type
+	switch conf.ProducerType {
+	case "HTTP":
+		return runHttp(dw, dr, errChan, endChan, conf)
+	case "QUEUE":
+		return runQueue(dw, dr, errChan, conf)
+	default:
+		return errors.New("undefined producer type")
+	}
+}
+
+// run http-based worker
+func runHttp(w core.Worker, r core.Registrar, errChan chan error, endChan chan struct{}, conf mapreduce.WorkerConfig) error {
+	ctx := context.Background()
+
+	// channel for signaling that http server has been set up
+	readyChan := make(chan struct{})
+	// channel for signaling that a new job was received
+	recvChan := make(chan struct{})
 
 	// running http server on random available port
 	listener, err := net.Listen("tcp", ":0")
@@ -45,6 +62,24 @@ func Run() error {
 		return fmt.Errorf("net.Listen: %v", err)
 	}
 
-	go srv.SendRegister(ctx, listener.Addr().(*net.TCPAddr).Port, readyChan, errChan)
-	return httpserver.New(r).Run(ctx, listener, readyChan, errChan, endChan)
+	// creating http-controller for receiving tasks from master
+	rt := chi.NewRouter()
+	httpworker.NewController(rt, w, errChan, recvChan)
+
+	// announcing worker to master
+	body := mapreduce.WorkerRegisterRequest{Port: strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)}
+	send := httpworker.UsingHttpWorker(ctx, body, r.SendRegister)
+	go send(conf.SetupDuration, conf.WorkerTimeout, errChan, readyChan, recvChan)
+
+	// running http server
+	return httpserver.New(rt, listener, readyChan, errChan, endChan).Run(ctx)
+}
+
+// run queue-based worker
+func runQueue(w core.Worker, r core.Registrar, errChan chan error, conf mapreduce.WorkerConfig) error {
+	ctx := context.Background()
+
+	go r.SendRegister(ctx, mapreduce.WorkerRegisterRequest{Port: "1337"})
+
+	return <-errChan
 }

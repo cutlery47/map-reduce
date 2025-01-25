@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/rabbitmq/amqp091-go"
 )
 
 type taskProducer interface {
@@ -74,21 +75,63 @@ func (htp *HTTPTaskProducer) produceReducerTasks(mapResults [][]byte) ([][]byte,
 }
 
 type RabbitTaskProducer struct {
-	br *Brocker
+	mapMq, redMq *Brocker
 }
 
 func NewRabbitTaskProducer(conf mapreduce.ProducerConfig) (*RabbitTaskProducer, error) {
-	br, err := NewBrocker(conf.RabbitConfig)
+	mapMqConf, err := mapreduce.NewRabbitConfig(conf.RabbitMapperPath)
+	if err != nil {
+		return nil, fmt.Errorf("mapreduce.NewRabbitConfig: %v", err)
+	}
+
+	redMqConf, err := mapreduce.NewRabbitConfig(conf.RabbitReducerPath)
+	if err != nil {
+		return nil, fmt.Errorf("mapreduce.NewRabbitConfig: %v", err)
+	}
+
+	mapMq, err := NewBrocker(mapMqConf)
+	if err != nil {
+		return nil, fmt.Errorf("NewBrocker: %v", err)
+	}
+
+	redMq, err := NewBrocker(redMqConf)
 	if err != nil {
 		return nil, fmt.Errorf("NewBrocker: %v", err)
 	}
 
 	return &RabbitTaskProducer{
-		br: br,
+		mapMq: mapMq,
+		redMq: redMq,
 	}, nil
 }
 
 func (rtp *RabbitTaskProducer) produceMapperTasks(files []io.Reader) ([][]byte, error) {
+	q, err := rtp.mapMq.ch.QueueDeclare(
+		"some",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		buf, _ := io.ReadAll(file)
+
+		rtp.mapMq.ch.Publish(
+			"",
+			q.Name,
+			false,
+			false,
+			amqp091.Publishing{
+				ContentType: "text/plain",
+				Body:        buf,
+			},
+		)
+	}
 
 	return nil, nil
 }

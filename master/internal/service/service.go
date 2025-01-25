@@ -123,17 +123,6 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 	errChan <- err
 }
 
-func createNestedDirString(b strings.Builder, objs ...string) string {
-	b.Reset()
-
-	for _, obj := range objs {
-		b.WriteString(obj)
-		b.WriteRune('/')
-	}
-
-	return b.String()[:b.Len()-1]
-}
-
 type addr struct {
 	Port string
 	Host string
