@@ -96,7 +96,7 @@ func NewRabbitConfig(envLocation string) (RabbitConfig, error) {
 }
 
 func readConfig(envLocation string, conf any) error {
-	if err := godotenv.Load(envLocation); err != nil {
+	if err := godotenv.Overload(envLocation); err != nil {
 		return fmt.Errorf("godotenv.Load: %v", err)
 	}
 

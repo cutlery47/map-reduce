@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
@@ -22,14 +23,16 @@ type DefaultRegistrar struct {
 	cl *http.Client
 
 	errChan chan<- error
+	resChan chan<- mapreduce.WorkerRegisterResponse
 
 	conf mapreduce.WorkerRegistrarConfig
 }
 
-func NewDefaultRegistrar(cl *http.Client, errChan chan<- error, conf mapreduce.WorkerRegistrarConfig) *DefaultRegistrar {
+func NewDefaultRegistrar(cl *http.Client, errChan chan<- error, resChan chan<- mapreduce.WorkerRegisterResponse, conf mapreduce.WorkerRegistrarConfig) *DefaultRegistrar {
 	return &DefaultRegistrar{
 		cl:      cl,
 		errChan: errChan,
+		resChan: resChan,
 		conf:    conf,
 	}
 }
@@ -58,9 +61,23 @@ func (dr *DefaultRegistrar) SendRegister(ctx context.Context, body mapreduce.Wor
 		return
 	}
 
+	resMsg, _ := io.ReadAll(res.Body)
+	log.Println(string(resMsg))
+
 	if res.StatusCode != 200 {
-		errMsg, _ := io.ReadAll(res.Body)
-		dr.errChan <- fmt.Errorf("couldn't register on master node: %v", string(errMsg))
+		dr.errChan <- fmt.Errorf("couldn't register on master node: %v", string(resMsg))
 		return
 	}
+
+	resJson := mapreduce.WorkerRegisterResponse{}
+
+	err = json.Unmarshal(resMsg, &resJson)
+	if err != nil {
+		dr.errChan <- fmt.Errorf("json.Unmarshall: %v", err)
+		return
+	}
+
+	log.Println(resJson)
+
+	dr.resChan <- resJson
 }

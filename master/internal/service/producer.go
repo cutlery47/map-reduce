@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
-	"github.com/rabbitmq/amqp091-go"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type taskProducer interface {
@@ -157,19 +157,18 @@ func (rtp *RabbitTaskProducer) produceMapperTasks(files []io.Reader) ([][]byte, 
 		return nil, err
 	}
 
-	for _, file := range files {
-		buf, _ := io.ReadAll(file)
-
-		rtp.mapMq.ch.Publish(
-			"",
-			q.Name,
-			false,
-			false,
-			amqp091.Publishing{
-				ContentType: "text/plain",
-				Body:        buf,
-			},
-		)
+	err = rtp.mapMq.ch.Publish(
+		"",
+		q.Name,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte("123123123"),
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return nil, nil

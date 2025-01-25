@@ -54,7 +54,7 @@ func (s *Server) Run(ctx context.Context, errChan <-chan error) error {
 	select {
 	case <-sigChan:
 	case err := <-errChan:
-		log.Println("error:", err)
+		log.Println("exiting due to:", err)
 	}
 
 	log.Println("Shutting down http server")

@@ -32,18 +32,25 @@ func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) 
 	}
 
 	req.Host = strings.Split(r.RemoteAddr, ":")[0]
-	if err := mr.srv.Register(req); err != nil {
+	res, err := mr.srv.Register(req)
+	if err != nil {
 		handleErr(err, w)
 		return
 	}
 
 	// waiting for all workers to announce themselves
-	// if the amount of announced workers is not sufficient - the request is rejected
-	// else - accepted
+	// if amount of registered workers is insufficient - the request is rejected
 	registered := <-mr.regChan
+
+	resByte, err := json.Marshal(res)
+	if err != nil {
+		handleErr(err, w)
+		return
+	}
+
 	if registered {
 		w.WriteHeader(200)
-		w.Write([]byte("registered"))
+		w.Write(resByte)
 	} else {
 		w.WriteHeader(500)
 		w.Write([]byte("couldn't collect enough workers in time"))

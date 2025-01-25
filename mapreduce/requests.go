@@ -1,12 +1,15 @@
 package mapreduce
 
 var (
-	MapperDistr  string = "MAPPER"
-	ReducerDistr string = "REDUCER"
-	WorkerAck    string = "ACK"
+	MapperType  string = "MAPPER"
+	ReducerType string = "REDUCER"
 )
 
 type WorkerRegisterRequest struct {
-	Host string
+	Host string `json:"host"`
 	Port string `json:"port"`
+}
+
+type WorkerRegisterResponse struct {
+	Type string `json:"type"`
 }

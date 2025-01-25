@@ -11,6 +11,11 @@ import (
 	"github.com/cutlery47/map-reduce/mapreduce"
 )
 
+const (
+	isMapper  = 0
+	isReducer = 1
+)
+
 type registrar struct {
 	// atomic worker connection count
 	mapCnt atomic.Int64
@@ -39,7 +44,7 @@ func newRegistrar(conf mapreduce.MasterRegistrarConfig, mapAddrs, redAddrs *[]ad
 }
 
 // Registering incoming workers
-func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) error {
+func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) (int, error) {
 	// load amounts of currectly connected mappers and reducers
 	mappers := reg.mapCnt.Load()
 	reducers := reg.redCnt.Load()
@@ -58,7 +63,7 @@ func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) error {
 		*reg.mapAddrs = append(*reg.mapAddrs, addr{Port: req.Port, Host: req.Host})
 		reg.mapMu.Unlock()
 
-		return nil
+		return isMapper, nil
 	}
 
 	// assign worker to reducer if possible
@@ -75,10 +80,10 @@ func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) error {
 		*reg.redAddrs = append(*reg.redAddrs, addr{Port: req.Port, Host: req.Host})
 		reg.redMu.Unlock()
 
-		return nil
+		return isReducer, nil
 	}
 
-	return errors.New("received registration request from extra worker")
+	return -1, errors.New("received registration request from extra worker")
 }
 
 func (reg *registrar) collectWorkers(mappers, reducers int) (int, error) {

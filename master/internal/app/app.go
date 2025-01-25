@@ -29,7 +29,7 @@ func Run() error {
 		return fmt.Errorf("mareduce.NewMasterConfig: %v", err)
 	}
 
-	if conf.Mappers != conf.Reducers {
+	if conf.ProducerType == "HTTP" && conf.Mappers != conf.Reducers {
 		return errors.New("amount of mappers should be equal to the amount of reducers")
 	}
 
@@ -37,9 +37,9 @@ func Run() error {
 		return errors.New("mappers amount should be > 0")
 	}
 
-	if conf.Reducers == 0 {
-		return errors.New("reducers amount should be > 0")
-	}
+	// if conf.Reducers == 0 {
+	// 	return errors.New("reducers amount should be > 0")
+	// }
 
 	errChan := make(chan error)
 	regChan := make(chan bool, conf.Mappers+conf.Reducers)

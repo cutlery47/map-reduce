@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	httpworker "github.com/cutlery47/map-reduce/worker/internal/http"
 	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
 	"github.com/go-chi/chi/v5"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 var envLocation = flag.String("env", ".env", "specify env-file name and location")
@@ -28,18 +30,20 @@ func Run() error {
 
 	// channel for passing errors
 	errChan := make(chan error)
+	// channel for passing register responses
+	resChan := make(chan mapreduce.WorkerRegisterResponse, 1)
 
 	// worker for handing mapping / reducing
 	dw := core.NewDefaultWorker(conf)
 	// registrar for announcing worker to the master
-	dr := core.NewDefaultRegistrar(http.DefaultClient, errChan, conf.WorkerRegistrarConfig)
+	dr := core.NewDefaultRegistrar(http.DefaultClient, errChan, resChan, conf.WorkerRegistrarConfig)
 
 	// run preferred worker based on producer type
 	switch conf.ProducerType {
 	case "HTTP":
 		return runHttp(dw, dr, errChan, conf)
 	case "QUEUE":
-		return runQueue(dw, dr, errChan, conf)
+		return runQueue(dw, dr, errChan, resChan, conf)
 	default:
 		return errors.New("undefined producer type")
 	}
@@ -76,10 +80,59 @@ func runHttp(w core.Worker, r core.Registrar, errChan chan error, conf mapreduce
 }
 
 // run queue-based worker
-func runQueue(w core.Worker, r core.Registrar, errChan chan error, conf mapreduce.WorkerConfig) error {
+func runQueue(w core.Worker, r core.Registrar, errChan chan error, resChan chan mapreduce.WorkerRegisterResponse, conf mapreduce.WorkerConfig) error {
 	ctx := context.Background()
 
-	go r.SendRegister(ctx, mapreduce.WorkerRegisterRequest{Port: "1337"})
+	go func() {
+		conn, err := amqp.Dial("amqp://guest:guest@localhost:5673/")
+		if err != nil {
+			errChan <- fmt.Errorf("amqp.Dial: %v", err)
+			return
+			// return fmt.Errorf("amqp.Dial: %v", err)
+		}
+
+		ch, err := conn.Channel()
+		if err != nil {
+			errChan <- fmt.Errorf("conn.Channel: %v", err)
+			return
+		}
+
+		q, err := ch.QueueDeclare(
+			"some",
+			false,
+			false,
+			false,
+			false,
+			nil,
+		)
+		if err != nil {
+			errChan <- fmt.Errorf("ch.QueueDeclare: %v", err)
+			return
+		}
+
+		go r.SendRegister(ctx, mapreduce.WorkerRegisterRequest{Port: "1337"})
+		regResponse := <-resChan
+		fmt.Println("regResponse:", regResponse)
+
+		msgs, err := ch.Consume(
+			q.Name,
+			"",
+			true,
+			false,
+			false,
+			false,
+			nil,
+		)
+		if err != nil {
+			errChan <- fmt.Errorf("ch.Consume: %v", err)
+		}
+
+		go func() {
+			for d := range msgs {
+				log.Println("received a message:", d)
+			}
+		}()
+	}()
 
 	return <-errChan
 }

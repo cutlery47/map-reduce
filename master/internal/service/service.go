@@ -11,7 +11,7 @@ import (
 )
 
 type Service interface {
-	Register(req mapreduce.WorkerRegisterRequest) error
+	Register(req mapreduce.WorkerRegisterRequest) (mapreduce.WorkerRegisterResponse, error)
 	HandleWorkers(errChan chan<- error, regChan chan<- bool)
 }
 
@@ -58,12 +58,28 @@ func NewMasterService(conf mapreduce.MasterConfig, cl *http.Client) (*MasterServ
 	}, nil
 }
 
-func (ms *MasterService) Register(req mapreduce.WorkerRegisterRequest) error {
+func (ms *MasterService) Register(req mapreduce.WorkerRegisterRequest) (mapreduce.WorkerRegisterResponse, error) {
 	ms.once.Do(func() {
 		ms.startChan <- struct{}{}
 	})
 
-	return ms.reg.register(req)
+	res := mapreduce.WorkerRegisterResponse{}
+
+	wType, err := ms.reg.register(req)
+	if err != nil {
+		return res, nil
+	}
+
+	switch wType {
+	case isMapper:
+		res.Type = mapreduce.MapperType
+		return res, nil
+	case isReducer:
+		res.Type = mapreduce.MapperType
+		return res, nil
+	}
+
+	panic("idk")
 }
 
 // Handle registered workers
@@ -121,9 +137,8 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 		}
 	}
 
-	fmt.Println("finished map-reduce")
 	// shutdown signal
-	errChan <- err
+	errChan <- fmt.Errorf("finished map-reduce")
 }
 
 type addr struct {
