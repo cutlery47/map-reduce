@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"sync"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/rabbitmq/amqp091-go"
@@ -19,8 +21,7 @@ type HTTPTaskProducer struct {
 	// http client for contacting workers
 	cl *http.Client
 
-	mapAddrs *[]addr
-	redAddrs *[]addr
+	mapAddrs, redAddrs *[]addr
 }
 
 // HTTPWorkerHandler constructor
@@ -32,46 +33,78 @@ func NewHTTPTaskProducer(cl *http.Client, mapAddrs, redAddrs *[]addr) *HTTPTaskP
 	}
 }
 
+// // produce tasks for mappers over http
 func (htp *HTTPTaskProducer) produceMapperTasks(files []io.Reader) ([][]byte, error) {
-	mapResults := [][]byte{}
-
-	for i, addr := range *htp.mapAddrs {
-		res, err := htp.cl.Post(fmt.Sprintf("http://%v:%v/map", addr.Host, addr.Port), "text/plain", files[i])
-		if err != nil {
-			return nil, fmt.Errorf("ms.cl.Post: %v", err)
-		}
-
-		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, fmt.Errorf("io.ReadAll: %v", err)
-		}
-
-		// storing map results
-		mapResults = append(mapResults, body)
-	}
-
-	return mapResults, nil
+	return htp.produce(files, *htp.mapAddrs, true)
 }
 
+// produce tasks for reducers over http
 func (htp *HTTPTaskProducer) produceReducerTasks(mapResults [][]byte) ([][]byte, error) {
-	redResults := [][]byte{}
+	input := make([]io.Reader, len(mapResults))
 
-	for i, addr := range *htp.redAddrs {
-		res, err := htp.cl.Post(fmt.Sprintf("http://%v:%v/reduce", addr.Host, addr.Port), "application/json", bytes.NewReader(mapResults[i]))
-		if err != nil {
-			return nil, fmt.Errorf("ms.cl.Post: %v", err)
-		}
-
-		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, fmt.Errorf("ms.cl.Post: %v", err)
-		}
-
-		// storing reduce results
-		redResults = append(redResults, body)
+	for i, res := range mapResults {
+		input[i] = bytes.NewReader(res)
 	}
 
-	return redResults, nil
+	return htp.produce(input, *htp.redAddrs, false)
+}
+
+func (htp *HTTPTaskProducer) produce(input []io.Reader, addrs []addr, toMapper bool) ([][]byte, error) {
+	output := [][]byte{}
+
+	wg := sync.WaitGroup{}
+	mu := sync.Mutex{}
+
+	// channel for passing errors from goroutines
+	errChan := make(chan error, len(*htp.mapAddrs))
+
+	// check where task is bound to (toMapper value)
+	// if toMapper == map -- send task to the map endpoint of a worker
+	// else -- to the reduce endpoint
+	var suffix string
+	if toMapper == true {
+		suffix = "map"
+	} else {
+		suffix = "reduce"
+	}
+
+	fmt.Println("producing", suffix, "input:", input)
+
+	// asynchronously sending each worker a task
+	for i, addr := range addrs {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			res, err := htp.cl.Post(fmt.Sprintf("http://%v:%v/%v", addr.Host, addr.Port, suffix), "application/json", input[i])
+			if err != nil {
+				errChan <- fmt.Errorf("ms.cl.Post: %v", err)
+			}
+
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				errChan <- fmt.Errorf("ms.cl.Post: %v", err)
+			}
+
+			// storing reduce results
+			mu.Lock()
+			output = append(output, body)
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+
+	// check if any errors occurred when sending tasks
+	select {
+	case err := <-errChan:
+		return nil, err
+	default:
+		log.Println("all tasks sent successfully")
+	}
+
+	return output, nil
 }
 
 type RabbitTaskProducer struct {

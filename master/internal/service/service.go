@@ -32,14 +32,14 @@ func NewMasterService(conf mapreduce.MasterConfig, cl *http.Client) (*MasterServ
 	mapAddrs := []addr{}
 	redAddrs := []addr{}
 
-	reg := newRegistrar(conf.RegistrarConfig, &mapAddrs, &redAddrs)
+	reg := newRegistrar(conf.MasterRegistrarConfig, &mapAddrs, &redAddrs)
 
 	var tp taskProducer
 
 	switch conf.ProducerType {
 	case "HTTP":
 		tp = NewHTTPTaskProducer(cl, &mapAddrs, &redAddrs)
-	case "RABBIT":
+	case "QUEUE":
 		prod, err := NewRabbitTaskProducer(conf.ProducerConfig)
 		if err != nil {
 			return nil, fmt.Errorf("NewRabbitTaskProducer: %v", err)

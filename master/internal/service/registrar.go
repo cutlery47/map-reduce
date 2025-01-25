@@ -21,10 +21,10 @@ type registrar struct {
 	mapMu *sync.Mutex
 	redMu *sync.Mutex
 
-	conf mapreduce.RegistrarConfig
+	conf mapreduce.MasterRegistrarConfig
 }
 
-func newRegistrar(conf mapreduce.RegistrarConfig, mapAddrs, redAddrs *[]addr) *registrar {
+func newRegistrar(conf mapreduce.MasterRegistrarConfig, mapAddrs, redAddrs *[]addr) *registrar {
 	return &registrar{
 		cnt:      atomic.Int64{},
 		mapAddrs: mapAddrs,
@@ -68,6 +68,8 @@ func (reg *registrar) collectWorkers(mappers, reducers int) (int, error) {
 	}
 
 	log.Println("all workers connected")
+	log.Println("mappers:", reg.mapAddrs)
+	log.Println("reducers:", reg.redAddrs)
 
 	return total, nil
 }
