@@ -1,4 +1,4 @@
-package service
+package core
 
 import (
 	"errors"
@@ -16,13 +16,13 @@ const (
 	isReducer = 1
 )
 
-type registrar struct {
+type Registrar struct {
 	// atomic worker connection count
 	mapCnt atomic.Int64
 	redCnt atomic.Int64
 
-	mapAddrs *[]addr
-	redAddrs *[]addr
+	mapAddrs *[]Addr
+	redAddrs *[]Addr
 
 	// mutexes for restricting concurrent access to slices
 	mapMu *sync.Mutex
@@ -31,8 +31,8 @@ type registrar struct {
 	conf mapreduce.MasterRegistrarConfig
 }
 
-func newRegistrar(conf mapreduce.MasterRegistrarConfig, mapAddrs, redAddrs *[]addr) *registrar {
-	return &registrar{
+func NewRegistrar(conf mapreduce.MasterRegistrarConfig, mapAddrs, redAddrs *[]Addr) *Registrar {
+	return &Registrar{
 		mapCnt:   atomic.Int64{},
 		redCnt:   atomic.Int64{},
 		mapAddrs: mapAddrs,
@@ -44,7 +44,7 @@ func newRegistrar(conf mapreduce.MasterRegistrarConfig, mapAddrs, redAddrs *[]ad
 }
 
 // Registering incoming workers
-func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) (int, error) {
+func (reg *Registrar) register(req mapreduce.WorkerRegisterRequest) (int, error) {
 	// load amounts of currectly connected mappers and reducers
 	mappers := reg.mapCnt.Load()
 	reducers := reg.redCnt.Load()
@@ -60,7 +60,7 @@ func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) (int, error)
 
 		// add mapper address
 		reg.mapMu.Lock()
-		*reg.mapAddrs = append(*reg.mapAddrs, addr{Port: req.Port, Host: req.Host})
+		*reg.mapAddrs = append(*reg.mapAddrs, Addr{Port: req.Port, Host: req.Host})
 		reg.mapMu.Unlock()
 
 		return isMapper, nil
@@ -77,7 +77,7 @@ func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) (int, error)
 
 		// add reducer address
 		reg.redMu.Lock()
-		*reg.redAddrs = append(*reg.redAddrs, addr{Port: req.Port, Host: req.Host})
+		*reg.redAddrs = append(*reg.redAddrs, Addr{Port: req.Port, Host: req.Host})
 		reg.redMu.Unlock()
 
 		return isReducer, nil
@@ -86,7 +86,7 @@ func (reg *registrar) register(req mapreduce.WorkerRegisterRequest) (int, error)
 	return -1, errors.New("received registration request from extra worker")
 }
 
-func (reg *registrar) collectWorkers(mappers, reducers int) (int, error) {
+func (reg *Registrar) collectWorkers(mappers, reducers int) (int, error) {
 	total := mappers + reducers
 	deadline := time.Now().Add(reg.conf.RegisterDuration)
 

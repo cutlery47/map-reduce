@@ -14,6 +14,7 @@ import (
 	"github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/worker/internal/core"
 	httpworker "github.com/cutlery47/map-reduce/worker/internal/http"
+	"github.com/cutlery47/map-reduce/worker/internal/http/controller"
 	"github.com/cutlery47/map-reduce/worker/internal/queue"
 	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
 	"github.com/go-chi/chi/v5"
@@ -69,7 +70,7 @@ func runHttp(w core.Worker, r core.Registrar, errChan chan error, conf mapreduce
 
 	// creating http-controller for receiving tasks from master
 	rt := chi.NewRouter()
-	httpworker.NewController(rt, w, errChan, recvChan, endChan)
+	controller.New(rt, w, errChan, recvChan, endChan)
 
 	// announcing worker to master
 	body := mapreduce.WorkerRegisterRequest{Port: strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)}

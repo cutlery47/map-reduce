@@ -1,4 +1,4 @@
-package service
+package httpmaster
 
 import (
 	"bytes"
@@ -8,24 +8,18 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/cutlery47/map-reduce/mapreduce"
-	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/cutlery47/map-reduce/master/internal/core"
 )
-
-type taskProducer interface {
-	produceMapperTasks(files []io.Reader) ([][]byte, error)
-	produceReducerTasks(mapResults [][]byte) ([][]byte, error)
-}
 
 type HTTPTaskProducer struct {
 	// http client for contacting workers
 	cl *http.Client
 
-	mapAddrs, redAddrs *[]addr
+	mapAddrs, redAddrs *[]core.Addr
 }
 
 // HTTPWorkerHandler constructor
-func NewHTTPTaskProducer(cl *http.Client, mapAddrs, redAddrs *[]addr) *HTTPTaskProducer {
+func NewHTTPTaskProducer(cl *http.Client, mapAddrs, redAddrs *[]core.Addr) *HTTPTaskProducer {
 	return &HTTPTaskProducer{
 		mapAddrs: mapAddrs,
 		redAddrs: redAddrs,
@@ -49,7 +43,7 @@ func (htp *HTTPTaskProducer) produceReducerTasks(mapResults [][]byte) ([][]byte,
 	return htp.produce(input, *htp.redAddrs, false)
 }
 
-func (htp *HTTPTaskProducer) produce(input []io.Reader, addrs []addr, toMapper bool) ([][]byte, error) {
+func (htp *HTTPTaskProducer) produce(input []io.Reader, addrs []core.Addr, toMapper bool) ([][]byte, error) {
 	output := [][]byte{}
 
 	wg := sync.WaitGroup{}
@@ -111,57 +105,4 @@ func (htp *HTTPTaskProducer) produce(input []io.Reader, addrs []addr, toMapper b
 	}
 
 	return output, nil
-}
-
-type RabbitTaskProducer struct {
-	b *Brocker
-
-	conf mapreduce.RabbitConfig
-}
-
-func NewRabbitTaskProducer(conf mapreduce.RabbitConfig) (*RabbitTaskProducer, error) {
-	b, err := NewBrocker(conf)
-	if err != nil {
-		return nil, fmt.Errorf("NewBrocker: %v", err)
-	}
-
-	return &RabbitTaskProducer{
-		b:    b,
-		conf: conf,
-	}, nil
-}
-
-func (rtp *RabbitTaskProducer) produceMapperTasks(files []io.Reader) ([][]byte, error) {
-	q, err := rtp.b.ch.QueueDeclare(
-		rtp.conf.MapperQueueName,
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	err = rtp.b.ch.Publish(
-		"",
-		q.Name,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte("123123123"),
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, nil
-}
-
-func (ms *RabbitTaskProducer) produceReducerTasks(mapResults [][]byte) ([][]byte, error) {
-
-	return nil, nil
 }

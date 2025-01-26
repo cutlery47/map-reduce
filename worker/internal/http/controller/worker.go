@@ -1,4 +1,4 @@
-package httpworker
+package controller
 
 import (
 	"encoding/json"

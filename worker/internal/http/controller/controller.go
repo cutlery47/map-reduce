@@ -1,4 +1,4 @@
-package httpworker
+package controller
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewController(r chi.Router, w core.Worker, errChan chan<- error, recvChan, endChan chan<- struct{}) {
+func New(r chi.Router, w core.Worker, errChan chan<- error, recvChan, endChan chan<- struct{}) {
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("pong"))

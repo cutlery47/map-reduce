@@ -1,4 +1,4 @@
-package service
+package httpmaster
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/master/internal/core"
 )
 
 type Service interface {
@@ -16,8 +17,8 @@ type Service interface {
 }
 
 type MasterService struct {
-	reg *registrar
-	tp  taskProducer
+	reg *core.Registrar
+	tp  core.TaskProducer
 
 	// config
 	conf mapreduce.MasterConfig
@@ -29,12 +30,12 @@ type MasterService struct {
 }
 
 func NewMasterService(conf mapreduce.MasterConfig, cl *http.Client) (*MasterService, error) {
-	mapAddrs := []addr{}
-	redAddrs := []addr{}
+	mapAddrs := []core.Addr{}
+	redAddrs := []core.Addr{}
 
-	reg := newRegistrar(conf.MasterRegistrarConfig, &mapAddrs, &redAddrs)
+	reg := core.NewRegistrar(conf.MasterRegistrarConfig, &mapAddrs, &redAddrs)
 
-	var tp taskProducer
+	var tp core.TaskProducer
 
 	switch conf.ProducerType {
 	case "HTTP":
@@ -139,9 +140,4 @@ func (ms *MasterService) HandleWorkers(errChan chan<- error, regChan chan<- bool
 
 	// shutdown signal
 	errChan <- fmt.Errorf("finished map-reduce")
-}
-
-type addr struct {
-	Port string
-	Host string
 }
