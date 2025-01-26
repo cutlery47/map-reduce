@@ -10,6 +10,7 @@ import (
 
 type WorkerConfig struct {
 	WorkerRegistrarConfig
+	RabbitConfig
 
 	ProducerType string `env:"PRODUCER_TYPE"`
 }
@@ -26,7 +27,7 @@ type WorkerRegistrarConfig struct {
 
 type MasterConfig struct {
 	MasterRegistrarConfig
-	ProducerConfig
+	RabbitConfig
 
 	ProducerType string `env:"PRODUCER_TYPE"`
 
@@ -52,17 +53,13 @@ type MasterRegistrarConfig struct {
 	CollectInterval time.Duration `env:"COLLECT_INTERVAL"`
 }
 
-type ProducerConfig struct {
-	RabbitMapperPath  string `env:"RABBIT_MAPPER_PATH"`
-	RabbitReducerPath string `env:"RABBIT_REDUCER_PATH"`
-	RabbitConfig
-}
-
 type RabbitConfig struct {
-	RabbitLogin    string `env:"RABBIT_LOGIN"`
-	RabbitPassword string `env:"RABBIT_PASSWORD"`
-	RabbitHost     string `env:"RABBIT_HOST"`
-	RabbitPort     string `env:"RABBIT_PORT"`
+	RabbitLogin      string `env:"RABBIT_LOGIN"`
+	RabbitPassword   string `env:"RABBIT_PASSWORD"`
+	RabbitHost       string `env:"RABBIT_HOST"`
+	RabbitPort       string `env:"RABBIT_PORT"`
+	MapperQueueName  string `env:"MAPPER_QUEUE_NAME"`
+	ReducerQueueName string `env:"REDUCER_QUEUE_NAME"`
 }
 
 func NewMasterConfig(envLocation string) (MasterConfig, error) {
@@ -77,16 +74,6 @@ func NewMasterConfig(envLocation string) (MasterConfig, error) {
 
 func NewWorkerConfig(envLocation string) (WorkerConfig, error) {
 	conf := WorkerConfig{}
-
-	if err := readConfig(envLocation, &conf); err != nil {
-		return conf, fmt.Errorf("readConfig: %v", err)
-	}
-
-	return conf, nil
-}
-
-func NewRabbitConfig(envLocation string) (RabbitConfig, error) {
-	conf := RabbitConfig{}
 
 	if err := readConfig(envLocation, &conf); err != nil {
 		return conf, fmt.Errorf("readConfig: %v", err)

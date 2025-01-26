@@ -114,39 +114,26 @@ func (htp *HTTPTaskProducer) produce(input []io.Reader, addrs []addr, toMapper b
 }
 
 type RabbitTaskProducer struct {
-	mapMq, redMq *Brocker
+	b *Brocker
+
+	conf mapreduce.RabbitConfig
 }
 
-func NewRabbitTaskProducer(conf mapreduce.ProducerConfig) (*RabbitTaskProducer, error) {
-	mapMqConf, err := mapreduce.NewRabbitConfig(conf.RabbitMapperPath)
-	if err != nil {
-		return nil, fmt.Errorf("mapreduce.NewRabbitConfig: %v", err)
-	}
-
-	redMqConf, err := mapreduce.NewRabbitConfig(conf.RabbitReducerPath)
-	if err != nil {
-		return nil, fmt.Errorf("mapreduce.NewRabbitConfig: %v", err)
-	}
-
-	mapMq, err := NewBrocker(mapMqConf)
-	if err != nil {
-		return nil, fmt.Errorf("NewBrocker: %v", err)
-	}
-
-	redMq, err := NewBrocker(redMqConf)
+func NewRabbitTaskProducer(conf mapreduce.RabbitConfig) (*RabbitTaskProducer, error) {
+	b, err := NewBrocker(conf)
 	if err != nil {
 		return nil, fmt.Errorf("NewBrocker: %v", err)
 	}
 
 	return &RabbitTaskProducer{
-		mapMq: mapMq,
-		redMq: redMq,
+		b:    b,
+		conf: conf,
 	}, nil
 }
 
 func (rtp *RabbitTaskProducer) produceMapperTasks(files []io.Reader) ([][]byte, error) {
-	q, err := rtp.mapMq.ch.QueueDeclare(
-		"some",
+	q, err := rtp.b.ch.QueueDeclare(
+		rtp.conf.MapperQueueName,
 		false,
 		false,
 		false,
@@ -157,7 +144,7 @@ func (rtp *RabbitTaskProducer) produceMapperTasks(files []io.Reader) ([][]byte, 
 		return nil, err
 	}
 
-	err = rtp.mapMq.ch.Publish(
+	err = rtp.b.ch.Publish(
 		"",
 		q.Name,
 		false,

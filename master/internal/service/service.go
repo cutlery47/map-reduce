@@ -40,7 +40,7 @@ func NewMasterService(conf mapreduce.MasterConfig, cl *http.Client) (*MasterServ
 	case "HTTP":
 		tp = NewHTTPTaskProducer(cl, &mapAddrs, &redAddrs)
 	case "QUEUE":
-		prod, err := NewRabbitTaskProducer(conf.ProducerConfig)
+		prod, err := NewRabbitTaskProducer(conf.RabbitConfig)
 		if err != nil {
 			return nil, fmt.Errorf("NewRabbitTaskProducer: %v", err)
 		}
@@ -75,7 +75,7 @@ func (ms *MasterService) Register(req mapreduce.WorkerRegisterRequest) (mapreduc
 		res.Type = mapreduce.MapperType
 		return res, nil
 	case isReducer:
-		res.Type = mapreduce.MapperType
+		res.Type = mapreduce.ReducerType
 		return res, nil
 	}
 

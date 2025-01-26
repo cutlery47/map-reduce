@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -13,9 +14,9 @@ import (
 	"github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/worker/internal/core"
 	httpworker "github.com/cutlery47/map-reduce/worker/internal/http"
+	"github.com/cutlery47/map-reduce/worker/internal/queue"
 	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
 	"github.com/go-chi/chi/v5"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 var envLocation = flag.String("env", ".env", "specify env-file name and location")
@@ -84,54 +85,43 @@ func runQueue(w core.Worker, r core.Registrar, errChan chan error, resChan chan 
 	ctx := context.Background()
 
 	go func() {
-		conn, err := amqp.Dial("amqp://guest:guest@localhost:5673/")
-		if err != nil {
-			errChan <- fmt.Errorf("amqp.Dial: %v", err)
-			return
-			// return fmt.Errorf("amqp.Dial: %v", err)
-		}
-
-		ch, err := conn.Channel()
-		if err != nil {
-			errChan <- fmt.Errorf("conn.Channel: %v", err)
-			return
-		}
-
-		q, err := ch.QueueDeclare(
-			"some",
-			false,
-			false,
-			false,
-			false,
-			nil,
-		)
-		if err != nil {
-			errChan <- fmt.Errorf("ch.QueueDeclare: %v", err)
-			return
-		}
-
 		go r.SendRegister(ctx, mapreduce.WorkerRegisterRequest{Port: "1337"})
 		regResponse := <-resChan
-		fmt.Println("regResponse:", regResponse)
 
-		msgs, err := ch.Consume(
-			q.Name,
-			"",
-			true,
-			false,
-			false,
-			false,
-			nil,
-		)
+		b, err := queue.NewBrocker(conf.RabbitConfig)
 		if err != nil {
-			errChan <- fmt.Errorf("ch.Consume: %v", err)
+			errChan <- fmt.Errorf("queue.NewBrocker: %v", err)
+			return
 		}
+
+		msgs, err := b.DeclareAndConsume(regResponse.Type)
+		if err != nil {
+			errChan <- fmt.Errorf("b.DeclareAndConsume: %v", err)
+			return
+		}
+
+		recvChan := make(chan any)
 
 		go func() {
 			for d := range msgs {
-				log.Println("received a message:", d)
+				log.Println("received a message:", string(d.Body))
+				reader := bytes.NewReader(d.Body)
+
+				result, err := w.Map(reader)
+				if err != nil {
+					errChan <- fmt.Errorf("w.Map: %v", err)
+					return
+				}
+
+				recvChan <- result
 			}
+
+			close(recvChan)
 		}()
+
+		for recv := range recvChan {
+			log.Println("handled a message:", recv)
+		}
 	}()
 
 	return <-errChan

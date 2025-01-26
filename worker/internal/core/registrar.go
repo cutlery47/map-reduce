@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
@@ -62,7 +61,6 @@ func (dr *DefaultRegistrar) SendRegister(ctx context.Context, body mapreduce.Wor
 	}
 
 	resMsg, _ := io.ReadAll(res.Body)
-	log.Println(string(resMsg))
 
 	if res.StatusCode != 200 {
 		dr.errChan <- fmt.Errorf("couldn't register on master node: %v", string(resMsg))
@@ -76,8 +74,6 @@ func (dr *DefaultRegistrar) SendRegister(ctx context.Context, body mapreduce.Wor
 		dr.errChan <- fmt.Errorf("json.Unmarshall: %v", err)
 		return
 	}
-
-	log.Println(resJson)
 
 	dr.resChan <- resJson
 }
