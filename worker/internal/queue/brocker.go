@@ -3,17 +3,17 @@ package queue
 import (
 	"fmt"
 
-	"github.com/cutlery47/map-reduce/mapreduce"
+	mr "github.com/cutlery47/map-reduce/mapreduce"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Brocker struct {
 	ch *amqp.Channel
 
-	conf mapreduce.RabbitConfig
+	conf mr.RabbitConf
 }
 
-func NewBrocker(conf mapreduce.RabbitConfig) (*Brocker, error) {
+func NewBrocker(conf mr.RabbitConf) (*Brocker, error) {
 	url := fmt.Sprintf(
 		"amqp://%v:%v@%v:%v/",
 		conf.RabbitLogin,
@@ -38,13 +38,13 @@ func NewBrocker(conf mapreduce.RabbitConfig) (*Brocker, error) {
 	}, nil
 }
 
-func (b *Brocker) DeclareAndConsume(wType string) (<-chan amqp.Delivery, error) {
+func (b *Brocker) DeclareAndConsume(typ string) (<-chan amqp.Delivery, error) {
 	var name string
 
-	switch wType {
-	case mapreduce.MapperType:
+	switch typ {
+	case mr.MapperType:
 		name = b.conf.MapperQueueName
-	case mapreduce.ReducerType:
+	case mr.ReducerType:
 		name = b.conf.ReducerQueueName
 	}
 

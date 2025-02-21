@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	mr "github.com/cutlery47/map-reduce/mapreduce"
 )
 
 const (
@@ -21,42 +22,32 @@ const (
 )
 
 type Server struct {
-	Server *http.Server
-
-	listener net.Listener
-
-	readyChan chan<- struct{}
-	errChan   <-chan error
-	endChan   <-chan struct{}
+	sv *http.Server
 
 	shutdownTimeout time.Duration
 }
 
-func New(handler http.Handler, listener net.Listener, readyChan chan<- struct{}, errChan <-chan error, endChan <-chan struct{}) *Server {
+func New(conf mr.WrkHttpConf, handler http.Handler) *Server {
 	httpserv := &http.Server{
 		Handler:      handler,
 		ReadTimeout:  defaultReadTimeout,
 		WriteTimeout: defaultWriteTimeout,
-		Addr:         defaultAdress,
+		Addr:         fmt.Sprintf("%v:%v", conf.Host, conf.Port),
 	}
 
 	serv := &Server{
-		Server:          httpserv,
-		listener:        listener,
-		readyChan:       readyChan,
-		errChan:         errChan,
-		endChan:         endChan,
+		sv:              httpserv,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
 
 	return serv
 }
 
-func (s *Server) Run(ctx context.Context) error {
-	log.Println(fmt.Sprintf("running http Server on %v", s.Server.Addr))
+func (s *Server) Run(doneChan <-chan struct{}, readyChan chan<- struct{}, errChan <-chan error) error {
+	log.Println(fmt.Sprintf("running http server on %v", s.sv.Addr))
 
 	go func() {
-		if err := s.Server.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
+		if err := s.sv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			log.Println("http Server error:", err)
 		}
 	}()
@@ -65,20 +56,20 @@ func (s *Server) Run(ctx context.Context) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// signaling that server has been set up
-	s.readyChan <- struct{}{}
+	readyChan <- struct{}{}
 
 	// waiting for either kernel signal or app signal
 	select {
-	case <-s.endChan:
+	case <-doneChan:
 	case <-sigChan:
-	case err := <-s.errChan:
+	case err := <-errChan:
 		log.Println("error:", err)
 	}
 
 	log.Println("shutting down http-server")
 
-	ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 	defer cancel()
 
-	return s.Server.Shutdown(ctx)
+	return s.sv.Shutdown(ctx)
 }

@@ -5,28 +5,23 @@ import (
 	"io"
 	"log"
 
-	"github.com/cutlery47/map-reduce/mapreduce"
+	mr "github.com/cutlery47/map-reduce/mapreduce"
 )
 
-var mapFunc, reduceFunc = mapreduce.MapReduce()
+var mapFunc, reduceFunc = mr.MapReduce()
 
-type Worker interface {
-	Map(reader io.Reader) (any, error)
-	Reduce(mapped any) (any, error)
+// default worker impl
+type Worker struct {
+	conf mr.WrkCoreConf
 }
 
-type DefaultWorker struct {
-	// config
-	conf mapreduce.WorkerConfig
-}
-
-func NewDefaultWorker(conf mapreduce.WorkerConfig) *DefaultWorker {
-	return &DefaultWorker{
+func NewWorker(conf mr.WrkCoreConf) *Worker {
+	return &Worker{
 		conf: conf,
 	}
 }
 
-func (dw *DefaultWorker) Map(reader io.Reader) (any, error) {
+func (w *Worker) Map(reader io.Reader) (any, error) {
 	log.Println("in map")
 
 	mapResult, err := mapFunc(reader)
@@ -39,10 +34,10 @@ func (dw *DefaultWorker) Map(reader io.Reader) (any, error) {
 	return mapResult, nil
 }
 
-func (dw *DefaultWorker) Reduce(result interface{}) (any, error) {
+func (w *Worker) Reduce(result interface{}) (any, error) {
 	log.Println("in reduce")
 
-	mapResult, ok := result.(mapreduce.MyMapResult)
+	mapResult, ok := result.(mr.MyMapResult)
 	if !ok {
 		return nil, fmt.Errorf("map result incompatible with reduce func")
 	}

@@ -1,23 +1,18 @@
 package app
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"log"
-	"net"
-	"net/http"
-	"strconv"
 
-	"github.com/cutlery47/map-reduce/mapreduce"
+	mr "github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/worker/internal/core"
-	httpworker "github.com/cutlery47/map-reduce/worker/internal/http"
-	"github.com/cutlery47/map-reduce/worker/internal/http/controller"
+	v1 "github.com/cutlery47/map-reduce/worker/internal/handlers/http/v1"
 	"github.com/cutlery47/map-reduce/worker/internal/queue"
+	httpService "github.com/cutlery47/map-reduce/worker/internal/service/http"
+	queueService "github.com/cutlery47/map-reduce/worker/internal/service/queue"
 	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
-	"github.com/go-chi/chi/v5"
 )
 
 var envLocation = flag.String("env", ".env", "specify env-file name and location")
@@ -25,105 +20,95 @@ var envLocation = flag.String("env", ".env", "specify env-file name and location
 func Run() error {
 	flag.Parse()
 
-	conf, err := mapreduce.NewWorkerConfig(*envLocation)
+	conf, err := mr.NewWorkerConfig(*envLocation)
 	if err != nil {
 		return fmt.Errorf("error when reading config: %v", err)
 	}
 
-	// channel for passing errors
-	errChan := make(chan error)
-	// channel for passing register responses
-	resChan := make(chan mapreduce.WorkerRegisterResponse, 1)
+	var (
+		// creating core worker for handing mapping / reducing
+		w = core.NewWorker(conf.WrkCoreConf)
+		// creaing registrar for announcing worker to the master
+		r = core.NewRegistrar(conf.WrkRegConf)
+	)
 
-	// worker for handing mapping / reducing
-	dw := core.NewDefaultWorker(conf)
-	// registrar for announcing worker to the master
-	dr := core.NewDefaultRegistrar(http.DefaultClient, errChan, resChan, conf.WorkerRegistrarConfig)
-
-	// run preferred worker based on producer type
-	switch conf.ProducerType {
+	// creating service based on transport
+	switch conf.Transport {
 	case "HTTP":
-		return runHttp(dw, dr, errChan, conf)
+		return runHttp(conf.WrkSvcConf, w, r)
 	case "QUEUE":
-		return runQueue(dw, dr, errChan, resChan, conf)
+		return runQueue(conf.WrkSvcConf, w, r)
 	default:
-		return errors.New("undefined producer type")
+		return errors.New("undefined transport")
 	}
 }
 
 // run http-based worker
-func runHttp(w core.Worker, r core.Registrar, errChan chan error, conf mapreduce.WorkerConfig) error {
-	ctx := context.Background()
-
-	// channel for signaling that http server has been set up
-	readyChan := make(chan struct{})
-	// channel for signaling that a new job was received
-	recvChan := make(chan struct{})
-	// channel for signaling that worker has ended execution
-	endChan := make(chan struct{})
-
-	// running http server on random available port
-	listener, err := net.Listen("tcp", ":0")
+func runHttp(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) error {
+	svc, err := httpService.New(conf, w, r)
 	if err != nil {
-		return fmt.Errorf("net.Listen: %v", err)
+		return fmt.Errorf("error when creating http service: %v", err)
 	}
 
+	// running http server on random available port
+	var (
+		// channel for signaling that worker has finished execution
+		doneChan = make(chan struct{})
+		// channel for passing errors down to httpserver
+		errChan = make(chan error)
+		// channel for signaling that a new job was received
+		recvChan = make(chan struct{})
+		// channel for signaling that http server has been set up
+		readyChan = make(chan struct{})
+	)
+
 	// creating http-controller for receiving tasks from master
-	rt := chi.NewRouter()
-	controller.New(rt, w, errChan, recvChan, endChan)
-
-	// announcing worker to master
-	body := mapreduce.WorkerRegisterRequest{Port: strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)}
-	send := httpworker.UsingHttpWorker(ctx, body, r.SendRegister)
-	go send(conf.SetupDuration, conf.WorkerTimeout, errChan, readyChan, recvChan)
-
-	// running http server
-	return httpserver.New(rt, listener, readyChan, errChan, endChan).Run(ctx)
-}
-
-// run queue-based worker
-func runQueue(w core.Worker, r core.Registrar, errChan chan error, resChan chan mapreduce.WorkerRegisterResponse, conf mapreduce.WorkerConfig) error {
-	ctx := context.Background()
+	h := v1.New(svc, doneChan, recvChan, errChan)
 
 	go func() {
-		go r.SendRegister(ctx, mapreduce.WorkerRegisterRequest{Port: "1337"})
-		regResponse := <-resChan
-
-		b, err := queue.NewBrocker(conf.RabbitConfig)
+		err := svc.Run(readyChan, recvChan)
 		if err != nil {
-			errChan <- fmt.Errorf("queue.NewBrocker: %v", err)
-			return
-		}
-
-		msgs, err := b.DeclareAndConsume(regResponse.Type)
-		if err != nil {
-			errChan <- fmt.Errorf("b.DeclareAndConsume: %v", err)
-			return
-		}
-
-		recvChan := make(chan any)
-
-		go func() {
-			for d := range msgs {
-				log.Println("received a message:", string(d.Body))
-				reader := bytes.NewReader(d.Body)
-
-				result, err := w.Map(reader)
-				if err != nil {
-					errChan <- fmt.Errorf("w.Map: %v", err)
-					return
-				}
-
-				recvChan <- result
-			}
-
-			close(recvChan)
-		}()
-
-		for recv := range recvChan {
-			log.Println("handled a message:", recv)
+			// sending all runtime errors to httpserver
+			errChan <- err
 		}
 	}()
 
-	return <-errChan
+	// running http server
+	return httpserver.New(conf.WrkHttpConf, h).Run(doneChan, readyChan, errChan)
+}
+
+// run queue-based worker
+func runQueue(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) error {
+	br, err := queue.NewBrocker(conf.RabbitConf)
+	if err != nil {
+		return fmt.Errorf("error when creating new brocker: %v", err)
+	}
+
+	svc, err := queueService.New(conf, w, r, br)
+	if err != nil {
+		return fmt.Errorf("error when creating queue service: %v", err)
+	}
+
+	var (
+		// channel for signaling that worker has finished execution
+		doneChan chan struct{}
+		// channel for passing errors down to httpserver
+		errChan chan error
+	)
+
+	go func() {
+		err := svc.Run(doneChan)
+		if err != nil {
+			// sending all runtime errors to httpserver
+			errChan <- err
+		}
+	}()
+
+	select {
+	case <-doneChan:
+		log.Println("service is done")
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }

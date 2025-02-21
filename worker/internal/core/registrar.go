@@ -8,72 +8,57 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/cutlery47/map-reduce/mapreduce"
+	mr "github.com/cutlery47/map-reduce/mapreduce"
 )
 
-type SenderFunction func(ctx context.Context, body mapreduce.WorkerRegisterRequest)
-
-type Registrar interface {
-	// sender function
-	SendRegister(ctx context.Context, body mapreduce.WorkerRegisterRequest)
-}
-
-type DefaultRegistrar struct {
+// default registrar impl
+type Registrar struct {
+	// for communicating with master
 	cl *http.Client
 
-	errChan chan<- error
-	resChan chan<- mapreduce.WorkerRegisterResponse
-
-	conf mapreduce.WorkerRegistrarConfig
+	conf mr.WrkRegConf
 }
 
-func NewDefaultRegistrar(cl *http.Client, errChan chan<- error, resChan chan<- mapreduce.WorkerRegisterResponse, conf mapreduce.WorkerRegistrarConfig) *DefaultRegistrar {
-	return &DefaultRegistrar{
-		cl:      cl,
-		errChan: errChan,
-		resChan: resChan,
-		conf:    conf,
+func NewRegistrar(conf mr.WrkRegConf) *Registrar {
+	return &Registrar{
+		cl:   http.DefaultClient,
+		conf: conf,
 	}
 }
 
-func (dr *DefaultRegistrar) SendRegister(ctx context.Context, body mapreduce.WorkerRegisterRequest) {
+func (r *Registrar) Send(ctx context.Context, body mr.WrkRegReq) (*mr.WrkRegRes, error) {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		dr.errChan <- fmt.Errorf("json.Marshal: %v", err)
-		return
+		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
-	jsonReader := bytes.NewReader(jsonBody)
 
-	addr := fmt.Sprintf("http://%v:%v/register", dr.conf.MasterHost, dr.conf.MasterPort)
+	// master addr
+	addr := fmt.Sprintf("http://%v:%v/register", r.conf.MasterHost, r.conf.MasterPort)
 
-	// creating registration request
-	req, err := http.NewRequestWithContext(ctx, "POST", addr, jsonReader)
+	req, err := http.NewRequestWithContext(ctx, "POST", addr, bytes.NewReader(jsonBody))
 	if err != nil {
-		dr.errChan <- fmt.Errorf("http.NewRequestWithContext: %v", err)
-		return
+		return nil, fmt.Errorf("http.NewRequestWithContext: %v", err)
 	}
 
-	// sending req
-	res, err := dr.cl.Do(req)
+	// announcing to master
+	res, err := r.cl.Do(req)
 	if err != nil {
-		dr.errChan <- fmt.Errorf("ws.cl.Do: %v", err)
-		return
+		return nil, fmt.Errorf("ws.cl.Do: %v", err)
 	}
-
-	resMsg, _ := io.ReadAll(res.Body)
 
 	if res.StatusCode != 200 {
-		dr.errChan <- fmt.Errorf("couldn't register on master node: %v", string(resMsg))
-		return
+		msg, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("couldn't register on master node: %v", string(msg))
 	}
 
-	resJson := mapreduce.WorkerRegisterResponse{}
+	var (
+		resJson mr.WrkRegRes
+	)
 
-	err = json.Unmarshal(resMsg, &resJson)
+	err = json.NewDecoder(res.Body).Decode(&resJson)
 	if err != nil {
-		dr.errChan <- fmt.Errorf("json.Unmarshall: %v", err)
-		return
+		return nil, fmt.Errorf("json.Decode: %v", err)
 	}
 
-	dr.resChan <- resJson
+	return &resJson, nil
 }
