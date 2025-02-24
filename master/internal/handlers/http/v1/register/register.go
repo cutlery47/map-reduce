@@ -1,4 +1,4 @@
-package v1
+package register
 
 import (
 	"encoding/json"
@@ -6,19 +6,18 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cutlery47/map-reduce/mapreduce"
+	mr "github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/master/internal/service"
 )
 
-type masterRoutes struct {
-	srv service.Service
-
+type registerRoutes struct {
+	srv *service.Master
 	// channel for receiving registration status
 	regChan <-chan bool
 }
 
-func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) {
-	var req mapreduce.WorkerRegisterRequest
+func (rr *registerRoutes) register(w http.ResponseWriter, r *http.Request) {
+	var req mr.WrkRegReq
 
 	jsonBody, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -32,7 +31,7 @@ func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) 
 	}
 
 	req.Host = strings.Split(r.RemoteAddr, ":")[0]
-	res, err := mr.srv.Register(req)
+	res, err := rr.srv.Register(req)
 	if err != nil {
 		handleErr(err, w)
 		return
@@ -40,7 +39,7 @@ func (mr *masterRoutes) registerWorkers(w http.ResponseWriter, r *http.Request) 
 
 	// waiting for all workers to announce themselves
 	// if amount of registered workers is insufficient - the request is rejected
-	registered := <-mr.regChan
+	registered := <-rr.regChan
 
 	resByte, err := json.Marshal(res)
 	if err != nil {

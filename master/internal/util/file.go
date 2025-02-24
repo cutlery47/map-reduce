@@ -1,4 +1,4 @@
-package core
+package util
 
 import (
 	"fmt"
@@ -9,22 +9,22 @@ import (
 	"strings"
 )
 
-func splitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error) {
+func SplitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error) {
 	// slice of file desctiptors abstracted as io.Readers
 	readers := []io.Reader{}
 
 	// creating chunk dir
-	if err := execMkdirWithParent(chunkDir); err != nil {
+	if err := ExecMkdirWithParent(chunkDir); err != nil {
 		return nil, fmt.Errorf("execMkdirWithParent: %v", err)
 	}
 
 	// creating results dir
-	if err := execMkdirWithParent(resultDir); err != nil {
+	if err := ExecMkdirWithParent(resultDir); err != nil {
 		return nil, fmt.Errorf("execMkdirWithParent: %v", err)
 	}
 
 	// splitting file into chunks in chunk dir
-	if err := execSplitFile(file, chunkDir, parts); err != nil {
+	if err := ExecSplitFile(file, chunkDir, parts); err != nil {
 		return nil, fmt.Errorf("execSplitFile: %v", err)
 	}
 
@@ -48,14 +48,14 @@ func splitFile(file, chunkDir, resultDir string, parts int) ([]io.Reader, error)
 	return readers, nil
 }
 
-func execMkdirWithParent(dir string) error {
+func ExecMkdirWithParent(dir string) error {
 	bash := "mkdir"
 	arg0, arg1 := "-p", dir
 
 	return execCmd(bash, arg0, arg1)
 }
 
-func execSplitFile(file, dir string, parts int) error {
+func ExecSplitFile(file, dir string, parts int) error {
 	bash := "split"
 	arg0, arg1 := "-n", strconv.Itoa(parts)
 	arg2 := "-d"
@@ -64,7 +64,7 @@ func execSplitFile(file, dir string, parts int) error {
 	return execCmd(bash, arg0, arg1, arg2, arg3, arg4)
 }
 
-func execCreateAndWriteFile(name, dir string, data []byte) error {
+func ExecCreateAndWriteFile(name, dir string, data []byte) error {
 	return os.WriteFile(fmt.Sprintf("%v/%v", dir, name), data, 0777)
 }
 
@@ -80,7 +80,7 @@ func execCmd(name string, args ...string) error {
 	return nil
 }
 
-func createNestedDirString(b strings.Builder, objs ...string) string {
+func CreateNestedDirString(b strings.Builder, objs ...string) string {
 	b.Reset()
 
 	for _, obj := range objs {

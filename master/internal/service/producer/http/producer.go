@@ -11,7 +11,7 @@ import (
 	"github.com/cutlery47/map-reduce/master/internal/core"
 )
 
-type HTTPTaskProducer struct {
+type httpTaskProducer struct {
 	// http client for contacting workers
 	cl *http.Client
 
@@ -19,8 +19,8 @@ type HTTPTaskProducer struct {
 }
 
 // HTTPWorkerHandler constructor
-func NewHTTPTaskProducer(cl *http.Client, mapAddrs, redAddrs *[]core.Addr) *HTTPTaskProducer {
-	return &HTTPTaskProducer{
+func NewHTTPTaskProducer(cl *http.Client, mapAddrs, redAddrs *[]core.Addr) *httpTaskProducer {
+	return &httpTaskProducer{
 		mapAddrs: mapAddrs,
 		redAddrs: redAddrs,
 		cl:       cl,
@@ -28,22 +28,22 @@ func NewHTTPTaskProducer(cl *http.Client, mapAddrs, redAddrs *[]core.Addr) *HTTP
 }
 
 // // produce tasks for mappers over http
-func (htp *HTTPTaskProducer) produceMapperTasks(files []io.Reader) ([][]byte, error) {
-	return htp.produce(files, *htp.mapAddrs, true)
+func (htp *httpTaskProducer) ProduceMapperTasks(in []io.Reader) ([][]byte, error) {
+	return htp.produce(in, *htp.mapAddrs, true)
 }
 
 // produce tasks for reducers over http
-func (htp *HTTPTaskProducer) produceReducerTasks(mapResults [][]byte) ([][]byte, error) {
-	input := make([]io.Reader, len(mapResults))
+func (htp *httpTaskProducer) ProduceReducerTasks(in [][]byte) ([][]byte, error) {
+	input := make([]io.Reader, len(in))
 
-	for i, res := range mapResults {
+	for i, res := range in {
 		input[i] = bytes.NewReader(res)
 	}
 
 	return htp.produce(input, *htp.redAddrs, false)
 }
 
-func (htp *HTTPTaskProducer) produce(input []io.Reader, addrs []core.Addr, toMapper bool) ([][]byte, error) {
+func (htp *httpTaskProducer) produce(input []io.Reader, addrs []core.Addr, toMapper bool) ([][]byte, error) {
 	output := [][]byte{}
 
 	wg := sync.WaitGroup{}

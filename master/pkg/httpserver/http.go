@@ -10,6 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	mr "github.com/cutlery47/map-reduce/mapreduce"
 )
 
 const (
@@ -19,31 +21,31 @@ const (
 )
 
 type Server struct {
-	server *http.Server
+	sv *http.Server
 
 	shutdownTimeout time.Duration
 }
 
-func New(handler http.Handler) *Server {
+func New(conf mr.MstHttpConf, handler http.Handler) *Server {
 	httpserv := &http.Server{
 		Handler:     handler,
 		ReadTimeout: defaultReadTimeout,
-		Addr:        defaultAdress,
+		Addr:        fmt.Sprintf("%v:%v", conf.Host, conf.Port),
 	}
 
 	serv := &Server{
-		server:          httpserv,
+		sv:              httpserv,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
 
 	return serv
 }
 
-func (s *Server) Run(ctx context.Context, errChan <-chan error) error {
-	log.Println(fmt.Sprintf("running http server on %v", s.server.Addr))
+func (s *Server) Run(doneChan <-chan struct{}, errChan <-chan error) error {
+	log.Println(fmt.Sprintf("running http server on %v", s.sv.Addr))
 
 	go func() {
-		if err := s.server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		if err := s.sv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			log.Println("http server error:", err)
 		}
 	}()
@@ -51,15 +53,18 @@ func (s *Server) Run(ctx context.Context, errChan <-chan error) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// waiting for either kernel signal or app signal
 	select {
+	case <-doneChan:
 	case <-sigChan:
 	case err := <-errChan:
-		log.Println("exiting due to:", err)
+		log.Println("error:", err)
 	}
 
-	log.Println("Shutting down http server")
-	ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
+	log.Println("shutting down http-server")
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 	defer cancel()
 
-	return s.server.Shutdown(ctx)
+	return s.sv.Shutdown(ctx)
 }

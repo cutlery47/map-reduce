@@ -1,4 +1,4 @@
-package v1
+package result
 
 import "net/http"
 
