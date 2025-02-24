@@ -9,7 +9,6 @@ import (
 	mr "github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/worker/internal/core"
 	v1 "github.com/cutlery47/map-reduce/worker/internal/handlers/http/v1"
-	"github.com/cutlery47/map-reduce/worker/internal/queue"
 	httpService "github.com/cutlery47/map-reduce/worker/internal/service/http"
 	queueService "github.com/cutlery47/map-reduce/worker/internal/service/queue"
 	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
@@ -79,12 +78,12 @@ func runHttp(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) error {
 
 // run queue-based worker
 func runQueue(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) error {
-	br, err := queue.NewBrocker(conf.RabbitConf)
-	if err != nil {
-		return fmt.Errorf("error when creating new brocker: %v", err)
-	}
+	// br, err := queue.NewBrocker(conf.RabbitConf)
+	// if err != nil {
+	// 	return fmt.Errorf("error when creating new brocker: %v", err)
+	// }
 
-	svc, err := queueService.New(conf, w, r, br)
+	svc, err := queueService.New(conf, w, r)
 	if err != nil {
 		return fmt.Errorf("error when creating queue service: %v", err)
 	}

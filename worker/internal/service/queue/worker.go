@@ -5,23 +5,19 @@ import (
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/worker/internal/core"
-	"github.com/cutlery47/map-reduce/worker/internal/queue"
 )
 
 type Service struct {
 	w *core.Worker
 	r *core.Registrar
 
-	br *queue.Brocker
-
 	conf mr.WrkSvcConf
 }
 
-func New(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar, br *queue.Brocker) (*Service, error) {
+func New(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) (*Service, error) {
 	return &Service{
 		w:    w,
 		r:    r,
-		br:   br,
 		conf: conf,
 	}, nil
 }
