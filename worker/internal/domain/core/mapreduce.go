@@ -10,18 +10,17 @@ import (
 
 var mapFunc, reduceFunc = mr.MapReduce()
 
-// default worker impl
-type Worker struct {
-	conf mr.WrkCoreConf
+type MapReduceHandler struct {
+	conf mr.Config
 }
 
-func NewWorker(conf mr.WrkCoreConf) *Worker {
-	return &Worker{
+func NewMapReduceHandler(conf mr.Config) (*MapReduceHandler, error) {
+	return &MapReduceHandler{
 		conf: conf,
-	}
+	}, nil
 }
 
-func (w *Worker) Map(reader io.Reader) (any, error) {
+func (mrh *MapReduceHandler) Map(reader io.Reader) (any, error) {
 	log.Println("in map")
 
 	mapResult, err := mapFunc(reader)
@@ -34,7 +33,7 @@ func (w *Worker) Map(reader io.Reader) (any, error) {
 	return mapResult, nil
 }
 
-func (w *Worker) Reduce(result interface{}) (any, error) {
+func (mrh *MapReduceHandler) Reduce(result interface{}) (any, error) {
 	log.Println("in reduce")
 
 	mapResult, ok := result.(mr.MyMapResult)

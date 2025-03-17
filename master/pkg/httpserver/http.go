@@ -54,7 +54,7 @@ func (s *Server) Run(doneChan <-chan struct{}, errChan <-chan error) error {
 		// finished gracefully
 	case err := <-errChan:
 		// received error
-		log.Println("[RUNTIME ERROR] error:", err)
+		log.Errorln("[RUNTIME ERROR] error:", err)
 	}
 
 	log.Infoln("[HTTP-SERVER] shutting down gracefully")

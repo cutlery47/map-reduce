@@ -22,7 +22,7 @@ type Master struct {
 	conf mr.Config
 }
 
-func NewMaster(conf mr.Config, tp prod.TaskProducer) *Master {
+func NewMaster(conf mr.Config, tp prod.TaskProducer) (*Master, error) {
 	var (
 		startCh = make(chan struct{})
 	)
@@ -34,7 +34,7 @@ func NewMaster(conf mr.Config, tp prod.TaskProducer) *Master {
 		conf:    conf,
 		once:    sync.Once{},
 		startCh: startCh,
-	}
+	}, nil
 }
 
 // primary master logic

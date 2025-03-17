@@ -13,39 +13,40 @@ import (
 )
 
 func Run(conf mr.Config) error {
+	var tp prod.TaskProducer
+
+	// creating task producer based on config
+	switch conf.Transport {
+	case "HTTP":
+		tp = httpProducer.New(conf)
+	case "QUEUE":
+		rtp, err := rabbitProducer.New(conf)
+		if err != nil {
+			return fmt.Errorf("[SETUP] error when setting up rabbitmq task producer: %v", err)
+		}
+		tp = rtp
+	}
+
+	mst, err := domain.NewMaster(conf, tp)
+	if err != nil {
+		return fmt.Errorf("[SETUP] error when setting up master: %v", err)
+	}
+
+	rt := routers.New(conf, mst)
 
 	var (
 		doneChan = make(chan struct{})
 		errChan  = make(chan error)
 	)
 
-	var (
-		tp prod.TaskProducer
-	)
-
-	switch conf.Transport {
-	case "http":
-		tp = httpProducer.New(conf)
-	case "queue":
-		rtp, err := rabbitProducer.New(conf)
-		if err != nil {
-			return fmt.Errorf("[SETUP] error when setting up rabbitmq task producer: %v", err)
-		}
-
-		tp = rtp
-	}
-
-	var (
-		mst = domain.NewMaster(conf, tp)
-		rt  = routers.New(conf, mst)
-	)
-
 	// entrypoint
 	go func() {
 		err := mst.Work()
 		if err != nil {
+			// error occured => pass to httpserver
 			errChan <- err
 		} else {
+			// all fine
 			doneChan <- struct{}{}
 		}
 	}()

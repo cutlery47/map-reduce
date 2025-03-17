@@ -2,51 +2,35 @@ package app
 
 import (
 	"errors"
-	"flag"
-	"fmt"
-	"log"
+	"net"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
-	"github.com/cutlery47/map-reduce/worker/internal/core"
-	v1 "github.com/cutlery47/map-reduce/worker/internal/handlers/http/v1"
-	httpService "github.com/cutlery47/map-reduce/worker/internal/service/http"
-	queueService "github.com/cutlery47/map-reduce/worker/internal/service/queue"
+	httpWorker "github.com/cutlery47/map-reduce/worker/internal/domain/http"
+	rabbitWorker "github.com/cutlery47/map-reduce/worker/internal/domain/rabbit"
+	v1 "github.com/cutlery47/map-reduce/worker/internal/routers/http/v1"
 	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
+	log "github.com/sirupsen/logrus"
 )
 
-var envLocation = flag.String("env", ".env", "specify env-file name and location")
-
-func Run() error {
-	flag.Parse()
-
-	conf, err := mr.NewWorkerConfig(*envLocation)
-	if err != nil {
-		return fmt.Errorf("error when reading config: %v", err)
-	}
-
-	var (
-		// creating core worker for handing mapping / reducing
-		w = core.NewWorker(conf.WrkCoreConf)
-		// creaing registrar for announcing worker to the master
-		r = core.NewRegistrar(conf.WrkRegConf)
-	)
+func Run(conf mr.Config) error {
+	log.Infoln("[SETUP] setting up worker...")
 
 	// creating service based on transport
 	switch conf.Transport {
 	case "HTTP":
-		return runHttp(conf.WrkSvcConf, w, r)
+		return runHttp(conf)
 	case "QUEUE":
-		return runQueue(conf.WrkSvcConf, w, r)
+		return runQueue(conf)
 	default:
 		return errors.New("undefined transport")
 	}
 }
 
 // run http-based worker
-func runHttp(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) error {
-	svc, err := httpService.New(conf, w, r)
+func runHttp(conf mr.Config) error {
+	wrk, err := httpWorker.New(conf)
 	if err != nil {
-		return fmt.Errorf("error when creating http service: %v", err)
+		return err
 	}
 
 	// running http server on random available port
@@ -62,30 +46,30 @@ func runHttp(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) error {
 	)
 
 	// creating http-controller for receiving tasks from master
-	h := v1.New(svc, doneChan, recvChan, errChan)
+	rt := v1.New(wrk, doneChan, recvChan, errChan)
 
 	go func() {
-		err := svc.Run(readyChan, recvChan)
+		err := wrk.Run(readyChan, recvChan)
 		if err != nil {
 			// sending all runtime errors to httpserver
 			errChan <- err
 		}
 	}()
 
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return err
+	}
+
 	// running http server
-	return httpserver.New(conf.WrkHttpConf, h).Run(doneChan, readyChan, errChan)
+	return httpserver.New(conf, listener, rt).Run(doneChan, readyChan, errChan)
 }
 
 // run queue-based worker
-func runQueue(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) error {
-	// br, err := queue.NewBrocker(conf.RabbitConf)
-	// if err != nil {
-	// 	return fmt.Errorf("error when creating new brocker: %v", err)
-	// }
-
-	svc, err := queueService.New(conf, w, r)
+func runQueue(conf mr.Config) error {
+	wrk, err := rabbitWorker.New(conf)
 	if err != nil {
-		return fmt.Errorf("error when creating queue service: %v", err)
+		return err
 	}
 
 	var (
@@ -96,7 +80,7 @@ func runQueue(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) error {
 	)
 
 	go func() {
-		err := svc.Run(doneChan)
+		err := wrk.Run(doneChan)
 		if err != nil {
 			// sending all runtime errors to httpserver
 			errChan <- err

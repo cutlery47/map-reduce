@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,43 +12,36 @@ import (
 	"time"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
-)
-
-const (
-	defaultAdress          = "0.0.0.0:0"
-	defaultReadTimeout     = 3 * time.Second
-	defaultWriteTimeout    = 3 * time.Second
-	defaultShutdownTimeout = 3 * time.Second
+	log "github.com/sirupsen/logrus"
 )
 
 type Server struct {
-	sv *http.Server
-
+	sv              *http.Server
+	listener        net.Listener
 	shutdownTimeout time.Duration
 }
 
-func New(conf mr.WrkHttpConf, handler http.Handler) *Server {
+func New(conf mr.Config, listener net.Listener, handler http.Handler) *Server {
 	httpserv := &http.Server{
 		Handler:      handler,
-		ReadTimeout:  defaultReadTimeout,
-		WriteTimeout: defaultWriteTimeout,
-		Addr:         fmt.Sprintf("%v:%v", conf.Host, conf.Port),
+		ReadTimeout:  conf.WorkerReadTimeout,
+		WriteTimeout: conf.WorkerWriteTimeout,
+		Addr:         fmt.Sprintf("%v:%v", conf.WorkerHost, listener.Addr().(*net.TCPAddr).Port),
 	}
 
-	serv := &Server{
+	return &Server{
 		sv:              httpserv,
-		shutdownTimeout: defaultShutdownTimeout,
+		listener:        listener,
+		shutdownTimeout: conf.WorkerShutdownTimeout,
 	}
-
-	return serv
 }
 
 func (s *Server) Run(doneChan <-chan struct{}, readyChan chan<- struct{}, errChan <-chan error) error {
-	log.Println(fmt.Sprintf("running http server on %v", s.sv.Addr))
+	log.Infoln("[HTTP-SERVER] running http server on:", s.sv.Addr)
 
 	go func() {
 		if err := s.sv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			log.Println("http Server error:", err)
+			log.Println("[HTTP-SERVER] error:", err)
 		}
 	}()
 
@@ -61,12 +54,15 @@ func (s *Server) Run(doneChan <-chan struct{}, readyChan chan<- struct{}, errCha
 	// waiting for either kernel signal or app signal
 	select {
 	case <-doneChan:
+		// finished gracefully
 	case <-sigChan:
+		// received kernel signal
 	case err := <-errChan:
-		log.Println("error:", err)
+		// received error
+		log.Errorln("[RUNTIME ERROR] error:", err)
 	}
 
-	log.Println("shutting down http-server")
+	log.Infoln("[HTTP-SERVER] shutting down gracefully")
 
 	ctx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 	defer cancel()

@@ -31,9 +31,14 @@ type Config struct {
 	MasterReadTimeout     time.Duration `env:"MASTER_READ_TIMEOUT"           env-required:"false" env-default:"3s"`
 	MasterWriteTimeout    time.Duration `env:"MASTER_WRITE_TIMEOUT"          env-required:"false" env-default:"3s"`
 	MasterShutdownTimeout time.Duration `env:"MASTER_SHUTDOWN_TIMEOUT"       env-required:"false" env-default:"0s"`
+	// time for master to receive request from any worker
 	MasterRequestAwaitDur time.Duration `env:"MASTER_REQUEST_AWAIT_DURATION" env-required:"false" env-default:"30s"`
 
 	// ================== WORKER ==================
+	WorkerHost            string        `env:"WORKER_HOST"              env-required:"false" env-default:"localhost"`
+	WorkerReadTimeout     time.Duration `env:"WORKER_READ_TIMEOUT"      env-required:"false" env-default:"3s"`
+	WorkerWriteTimeout    time.Duration `env:"WORKER_WRITE_TIMEOUT"     env-required:"false" env-default:"3s"`
+	WorkerShutdownTimeout time.Duration `env:"WORKER_SHUTDOWN_TIMEOUT"  env-required:"false" env-default:"0s"`
 	// time for worker node to set up
 	WorkerSetupDur time.Duration `env:"WORKER_SETUP_DURATION" env-required:"false" env-default:"10s"`
 	// time for worker to receive a new job

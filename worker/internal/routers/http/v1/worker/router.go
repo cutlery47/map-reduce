@@ -1,15 +1,15 @@
 package worker
 
 import (
-	httpService "github.com/cutlery47/map-reduce/worker/internal/service/http"
+	httpWorker "github.com/cutlery47/map-reduce/worker/internal/domain/http"
 	"github.com/go-chi/chi/v5"
 )
 
-func New(svc *httpService.Service, doneChan, recvChan chan<- struct{}, errChan chan<- error) chi.Router {
+func New(wrk *httpWorker.Worker, doneChan, recvChan chan<- struct{}, errChan chan<- error) chi.Router {
 	var (
 		r  = chi.NewRouter()
 		wr = &workerRoutes{
-			svc:      svc,
+			wrk:      wrk,
 			doneChan: doneChan,
 			errChan:  errChan,
 			recvChan: recvChan,

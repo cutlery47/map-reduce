@@ -7,11 +7,11 @@ import (
 	"net/http"
 
 	"github.com/cutlery47/map-reduce/mapreduce"
-	httpService "github.com/cutlery47/map-reduce/worker/internal/service/http"
+	httpWorker "github.com/cutlery47/map-reduce/worker/internal/domain/http"
 )
 
 type workerRoutes struct {
-	svc *httpService.Service
+	wrk *httpWorker.Worker
 
 	// channel for signaling that worker has finished handing its tasks
 	doneChan chan<- struct{}
@@ -25,7 +25,7 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 	// signaling that a new job has been received
 	wr.recvChan <- struct{}{}
 
-	res, err := wr.svc.Map(r.Body)
+	res, err := wr.wrk.Map(r.Body)
 	if err != nil {
 		handleErr(err, w)
 		wr.errChan <- err
@@ -64,7 +64,7 @@ func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := wr.svc.Reduce(mapResult)
+	res, err := wr.wrk.Reduce(mapResult)
 	if err != nil {
 		handleErr(err, w)
 		wr.errChan <- fmt.Errorf("reduceFunc: %v", err)

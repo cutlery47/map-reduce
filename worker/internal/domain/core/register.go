@@ -11,29 +11,26 @@ import (
 	mr "github.com/cutlery47/map-reduce/mapreduce"
 )
 
-// default registrar impl
-type Registrar struct {
-	// for communicating with master
-	cl *http.Client
-
-	conf mr.WrkRegConf
+type RegisterHandler struct {
+	cl   *http.Client // client for communicating with master
+	conf mr.Config
 }
 
-func NewRegistrar(conf mr.WrkRegConf) *Registrar {
-	return &Registrar{
+func NewRegisterHandler(conf mr.Config) (*RegisterHandler, error) {
+	return &RegisterHandler{
 		cl:   http.DefaultClient,
 		conf: conf,
-	}
+	}, nil
 }
 
-func (r *Registrar) Send(ctx context.Context, body mr.WrkRegReq) (*mr.WrkRegRes, error) {
+func (rh *RegisterHandler) Send(ctx context.Context, body mr.RegisterRequest) (*mr.RegisterResponse, error) {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("json.Marshal: %v", err)
 	}
 
 	// master addr
-	addr := fmt.Sprintf("http://%v:%v/register", r.conf.MasterHost, r.conf.MasterPort)
+	addr := fmt.Sprintf("http://%v:%v/register", rh.conf.MasterHost, rh.conf.MasterPort)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", addr, bytes.NewReader(jsonBody))
 	if err != nil {
@@ -41,7 +38,7 @@ func (r *Registrar) Send(ctx context.Context, body mr.WrkRegReq) (*mr.WrkRegRes,
 	}
 
 	// announcing to master
-	res, err := r.cl.Do(req)
+	res, err := rh.cl.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("ws.cl.Do: %v", err)
 	}
@@ -52,7 +49,7 @@ func (r *Registrar) Send(ctx context.Context, body mr.WrkRegReq) (*mr.WrkRegRes,
 	}
 
 	var (
-		resJson mr.WrkRegRes
+		resJson mr.RegisterResponse
 	)
 
 	err = json.NewDecoder(res.Body).Decode(&resJson)

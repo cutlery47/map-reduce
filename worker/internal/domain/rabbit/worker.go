@@ -4,33 +4,42 @@ import (
 	"io"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
-	"github.com/cutlery47/map-reduce/worker/internal/core"
+	"github.com/cutlery47/map-reduce/worker/internal/domain/core"
 )
 
-type Service struct {
-	w *core.Worker
-	r *core.Registrar
-
-	conf mr.WrkSvcConf
+type Worker struct {
+	mrh  *core.MapReduceHandler
+	reg  *core.RegisterHandler
+	conf mr.Config
 }
 
-func New(conf mr.WrkSvcConf, w *core.Worker, r *core.Registrar) (*Service, error) {
-	return &Service{
-		w:    w,
-		r:    r,
+func New(conf mr.Config) (*Worker, error) {
+	mrh, err := core.NewMapReduceHandler(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	reg, err := core.NewRegisterHandler(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Worker{
+		mrh:  mrh,
+		reg:  reg,
 		conf: conf,
 	}, nil
 }
 
-func (s *Service) Map(r io.Reader) (any, error) {
-	return s.w.Map(r)
+func (w *Worker) Map(r io.Reader) (any, error) {
+	return w.mrh.Map(r)
 }
 
-func (s *Service) Reduce(mapped any) (any, error) {
-	return s.w.Reduce(mapped)
+func (w *Worker) Reduce(mapped any) (any, error) {
+	return w.mrh.Reduce(mapped)
 }
 
-func (s *Service) Run(doneChan chan<- struct{}) error {
+func (w *Worker) Run(doneChan chan<- struct{}) error {
 	// ctx, cancel := context.WithTimeout(context.TODO(), s.conf.RegisterTimeout)
 	// defer cancel()
 
