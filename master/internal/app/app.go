@@ -1,36 +1,54 @@
 package app
 
 import (
-	"flag"
 	"fmt"
-	"syscall"
 
-	"github.com/cutlery47/map-reduce/mapreduce"
-	v1 "github.com/cutlery47/map-reduce/master/internal/handlers/http/v1"
+	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/master/internal/domain"
+	prod "github.com/cutlery47/map-reduce/master/internal/domain/producer"
+	httpProducer "github.com/cutlery47/map-reduce/master/internal/domain/producer/http"
+	rabbitProducer "github.com/cutlery47/map-reduce/master/internal/domain/producer/rabbit"
+	routers "github.com/cutlery47/map-reduce/master/internal/routers/http/v1"
 	"github.com/cutlery47/map-reduce/master/pkg/httpserver"
 )
 
-var envLocation = flag.String("env", ".env", "specify env-file name and location")
-
-func Run() error {
-	// drop permission limit
-	syscall.Umask(0)
-
-	flag.Parse()
-
-	conf, err := mapreduce.NewMasterConfig(*envLocation)
-	if err != nil {
-		return fmt.Errorf("mareduce.NewMasterConfig: %v", err)
-	}
+func Run(conf mr.Config) error {
 
 	var (
 		doneChan = make(chan struct{})
 		errChan  = make(chan error)
-		regChan  = make(chan bool, conf.Mappers+conf.Reducers)
 	)
 
-	h := v1.New(srv, regChan)
+	var (
+		tp prod.TaskProducer
+	)
 
-	go srv.HandleWorkers(errChan, regChan)
-	return httpserver.New(conf.MstHttpConf, h).Run(errChan)
+	switch conf.Transport {
+	case "http":
+		tp = httpProducer.New(conf)
+	case "queue":
+		rtp, err := rabbitProducer.New(conf)
+		if err != nil {
+			return fmt.Errorf("[SETUP] error when setting up rabbitmq task producer: %v", err)
+		}
+
+		tp = rtp
+	}
+
+	var (
+		mst = domain.NewMaster(conf, tp)
+		rt  = routers.New(conf, mst)
+	)
+
+	// entrypoint
+	go func() {
+		err := mst.Work()
+		if err != nil {
+			errChan <- err
+		} else {
+			doneChan <- struct{}{}
+		}
+	}()
+
+	return httpserver.New(conf, rt).Run(doneChan, errChan)
 }

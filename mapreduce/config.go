@@ -8,88 +8,56 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type WorkerConfig struct {
-	WorkerRegistrarConfig
-	RabbitConfig
+// ================== WORKER CONFIG ==================
 
-	ProducerType string `env:"PRODUCER_TYPE"`
-}
-
-type WorkerRegistrarConfig struct {
-	MasterHost string `env:"MASTER_HOST"`
-	MasterPort string `env:"MASTER_PORT"`
-
-	// time for worker node to set up
-	SetupDuration time.Duration `env:"SETUP_DURATION"`
-	// time for worker to receive a new job
-	WorkerTimeout time.Duration `env:"WORKER_TIMEOUT"`
-}
-
-type MasterConfig struct {
-	MasterRegistrarConfig
-	RabbitConfig
-
-	ProducerType string `env:"PRODUCER_TYPE"`
-
-	// directory to be mapped into master node
-	FileDirectory string `env:"MAPPED_FILE_DIRECTORY"`
-	// name of a file to be mapped
-	FileName string `env:"FILE_NAME"`
-	// location of chunks inside file directory
-	ChunkDirectory string `env:"CHUNK_DIRECTORY"`
-	// location of results inside file directory
-	ResultDirectory string `env:"RESULT_DIRECTORY"`
-}
-
-type MasterRegistrarConfig struct {
-	// amount of mappers
-	Mappers int `env:"MAPPERS"`
+type Config struct {
+	// ================== GENERAL ==================
+	// file to be processed
+	File string `env:"FILE" env-required:"true"`
+	// amount of workers
+	Mappers int `env:"MAPPERS" env-required:"true"`
 	// amount of reducers
-	Reducers int `env:"REDUCERS"`
-
+	Reducers int `env:"REDUCERS" env-required:"true"`
+	// transport to be used in the system
+	Transport string `env:"TRANSPORT" env-required:"true"`
+	// directory to map into master node
+	MappedDir string `env:"MAPPED_DIRECTORY" env-required:"false" env-default:"data"`
 	// time for all worker nodes to register on master
-	RegisterDuration time.Duration `env:"REGISTER_DURATION"`
-	// time in between which master node checks for registered worker nodes
-	CollectInterval time.Duration `env:"COLLECT_INTERVAL"`
+	RegisterDur time.Duration `env:"REGISTER_DURATION" env-required:"false" env-default:"30s"`
+
+	// ================== MASTER ==================
+	MasterHost            string        `env:"MASTER_HOST"                   env-required:"false" env-default:"localhost"`
+	MasterPort            string        `env:"MASTER_PORT"                   env-required:"false" env-default:"8080"`
+	MasterReadTimeout     time.Duration `env:"MASTER_READ_TIMEOUT"           env-required:"false" env-default:"3s"`
+	MasterWriteTimeout    time.Duration `env:"MASTER_WRITE_TIMEOUT"          env-required:"false" env-default:"3s"`
+	MasterShutdownTimeout time.Duration `env:"MASTER_SHUTDOWN_TIMEOUT"       env-required:"false" env-default:"0s"`
+	MasterRequestAwaitDur time.Duration `env:"MASTER_REQUEST_AWAIT_DURATION" env-required:"false" env-default:"30s"`
+
+	// ================== WORKER ==================
+	// time for worker node to set up
+	WorkerSetupDur time.Duration `env:"WORKER_SETUP_DURATION" env-required:"false" env-default:"10s"`
+	// time for worker to receive a new job
+	WorkerAwaitDur time.Duration `env:"WORKER_AWAIT_DURATION" env-required:"false" env-default:"10s"`
+
+	// ================== RABBITMQ ==================
+	RabbitLogin        string `env:"RABBIT_LOGIN"         env-required:"false" env-default:"login"`
+	RabbitPassword     string `env:"RABBIT_PASSWORD"      env-required:"false" env-defualt:"password"`
+	RabbitHost         string `env:"RABBIT_HOST"          env-required:"false" env-default:"host"`
+	RabbitPort         string `env:"RABBIT_PORT"          env-required:"false" env-default:"port"`
+	RabbitMapperQueue  string `env:"RABBIT_MAPPER_QUEUE"  env-required:"false" env-default:"mapper"`
+	RabbitReducerQueue string `env:"RABBIT_REDUCER_QUEUE" env-required:"false" env-default:"reducer"`
 }
 
-type RabbitConfig struct {
-	RabbitLogin      string `env:"RABBIT_LOGIN"`
-	RabbitPassword   string `env:"RABBIT_PASSWORD"`
-	RabbitHost       string `env:"RABBIT_HOST"`
-	RabbitPort       string `env:"RABBIT_PORT"`
-	MapperQueueName  string `env:"MAPPER_QUEUE_NAME"`
-	ReducerQueueName string `env:"REDUCER_QUEUE_NAME"`
-}
+func NewConfig(envLocation string) (*Config, error) {
+	var conf Config
 
-func NewMasterConfig(envLocation string) (MasterConfig, error) {
-	conf := MasterConfig{}
-
-	if err := readConfig(envLocation, &conf); err != nil {
-		return conf, fmt.Errorf("readConfig: %v", err)
-	}
-
-	return conf, nil
-}
-
-func NewWorkerConfig(envLocation string) (WorkerConfig, error) {
-	conf := WorkerConfig{}
-
-	if err := readConfig(envLocation, &conf); err != nil {
-		return conf, fmt.Errorf("readConfig: %v", err)
-	}
-
-	return conf, nil
-}
-
-func readConfig(envLocation string, conf any) error {
 	if err := godotenv.Overload(envLocation); err != nil {
-		return fmt.Errorf("godotenv.Load: %v", err)
+		return nil, fmt.Errorf("godotenv.Load: %v", err)
 	}
 
-	if err := cleanenv.ReadEnv(conf); err != nil {
-		return fmt.Errorf("cleanenv.ReadEnv: %v", err)
+	if err := cleanenv.ReadEnv(&conf); err != nil {
+		return nil, fmt.Errorf("cleanenv.ReadEnv: %v", err)
 	}
 
-	return nil
+	return &conf, nil
 }

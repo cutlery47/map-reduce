@@ -1,15 +1,21 @@
 package mapreduce
 
-var (
-	MapperType  string = "MAPPER"
-	ReducerType string = "REDUCER"
-)
+type Role string
 
-type WorkerRegisterRequest struct {
+type Addr struct {
 	Host string `json:"host"`
 	Port string `json:"port"`
 }
 
-type WorkerRegisterResponse struct {
-	Type string `json:"type"`
+var (
+	Mapper  Role = "MAPPER"
+	Reducer Role = "REDUCER"
+)
+
+type RegisterRequest struct {
+	Addr Addr `json:"addr"`
+}
+
+type RegisterResponse struct {
+	Role Role `json:"role"`
 }
