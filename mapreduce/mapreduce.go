@@ -1,37 +1,35 @@
 package mapreduce
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/json"
 	"io"
 	"strings"
 )
 
-// KT - Map result key type
-// VT - Map result value type
-// RT - Reduce result type
+// Interface for your personal mapper / reducer functions
+type Func func(input io.Reader) (io.Reader, error)
 
-type Map[KT, VT any] func(input io.Reader) ([]MapResult[KT, VT], error)
+// Define your Func implementations below
+// ===============================================
+// ATTENTION: IT IS NECESSARY TO NAME YOUR FUNCTIONS "MapperFunc" AND "ReducerFunc" RESPECTIVELY
 
-type MapResult[KT, VT any] struct {
-	MappedKey   KT `json:"key"`
-	MappedValue VT `json:"value"`
+// Code below is for example purposes
+
+type Entry struct {
+	Key   string `json:"key"`
+	Value int    `json:"value"`
 }
 
-type Reduce[KT, VT, RT any] func(res []MapResult[KT, VT]) ([]RT, error)
+type (
+	MapResult []Entry
+	RedResult []Entry
+)
 
-// Function which returns user implementations of Map() and Reduce()
-func MapReduce() (Map[string, int], Reduce[string, int, string]) {
-	return MyMap, MyReduce
-}
-
-// Define your Map(), Reduce(), MapResult and RedResult implementations below...
-// ======================================================
-
-type MyMapResult []MapResult[string, int]
-type MyRedResult []string
-
-var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], error) {
-	res := []MapResult[string, int]{}
+var MapperFunc Func = func(input io.Reader) (io.Reader, error) {
+	var (
+		res MapResult
+	)
 
 	raw, err := io.ReadAll(input)
 	if err != nil {
@@ -39,31 +37,34 @@ var MyMap Map[string, int] = func(input io.Reader) ([]MapResult[string, int], er
 	}
 
 	for _, word := range strings.Split(string(raw), " ") {
-		res = append(res, MapResult[string, int]{
-			MappedKey:   word,
-			MappedValue: 1,
+		res = append(res, Entry{
+			Key:   word,
+			Value: 1,
 		})
 	}
 
-	return res, nil
+	resJson, err := json.Marshal(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewBuffer(resJson), nil
 }
 
-var MyReduce Reduce[string, int, string] = func(res []MapResult[string, int]) ([]string, error) {
-	reducerRes := []string{}
+var ReducerFunc Func = func(input io.Reader) (io.Reader, error) {
+	var (
+		res RedResult
+	)
 
-	freq := map[string]int{}
-
-	for _, mres := range res {
-		if v, ok := freq[mres.MappedKey]; !ok {
-			freq[mres.MappedKey] = 1
-		} else {
-			freq[mres.MappedKey] = v + 1
-		}
+	err := json.NewDecoder(input).Decode(&res)
+	if err != nil {
+		return nil, err
 	}
 
-	for k, v := range freq {
-		reducerRes = append(reducerRes, fmt.Sprintf("%v:%v", k, v))
+	resJson, err := json.Marshal(res)
+	if err != nil {
+		return nil, err
 	}
 
-	return reducerRes, nil
+	return bytes.NewBuffer(resJson), nil
 }
