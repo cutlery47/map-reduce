@@ -1,4 +1,4 @@
-package service
+package rabbitworker
 
 import (
 	"io"
@@ -7,39 +7,24 @@ import (
 	"github.com/cutlery47/map-reduce/worker/internal/domain/core"
 )
 
-type Worker struct {
-	mrh  *core.MapReduceHandler
+type RabbitWorker struct {
 	reg  *core.RegisterHandler
 	conf mr.Config
 }
 
-func New(conf mr.Config) (*Worker, error) {
-	mrh, err := core.NewMapReduceHandler(conf)
-	if err != nil {
-		return nil, err
-	}
-
+func New(conf mr.Config) (*RabbitWorker, error) {
 	reg, err := core.NewRegisterHandler(conf)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Worker{
-		mrh:  mrh,
+	return &RabbitWorker{
 		reg:  reg,
 		conf: conf,
 	}, nil
 }
 
-func (w *Worker) Map(r io.Reader) (any, error) {
-	return w.mrh.Map(r)
-}
-
-func (w *Worker) Reduce(mapped any) (any, error) {
-	return w.mrh.Reduce(mapped)
-}
-
-func (w *Worker) Run(doneChan chan<- struct{}) error {
+func (w *RabbitWorker) Run() error {
 	// ctx, cancel := context.WithTimeout(context.TODO(), s.conf.RegisterTimeout)
 	// defer cancel()
 
@@ -87,4 +72,12 @@ func (w *Worker) Run(doneChan chan<- struct{}) error {
 	// }
 
 	return nil
+}
+
+func (w *RabbitWorker) Map(input io.Reader) (io.Reader, error) {
+	return mr.MapperFunc(input)
+}
+
+func (w *RabbitWorker) Reduce(input io.Reader) (io.Reader, error) {
+	return mr.ReducerFunc(input)
 }

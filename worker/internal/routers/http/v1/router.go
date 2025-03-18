@@ -3,16 +3,12 @@ package handlers
 import (
 	"net/http"
 
-	httpWorker "github.com/cutlery47/map-reduce/worker/internal/domain/http"
-	"github.com/cutlery47/map-reduce/worker/internal/routers/http/v1/worker"
+	"github.com/cutlery47/map-reduce/worker/internal/domain"
+	"github.com/cutlery47/map-reduce/worker/internal/routers/http/v1/mapreduce"
 	"github.com/go-chi/chi/v5"
 )
 
-func New(
-	wrk *httpWorker.Worker,
-	doneChan, recvChan chan<- struct{},
-	errChan chan<- error,
-) *chi.Mux {
+func New(wrk domain.Worker) *chi.Mux {
 	var (
 		r = chi.NewRouter()
 	)
@@ -22,7 +18,7 @@ func New(
 		w.Write([]byte("pong"))
 	})
 
-	r.Mount("/worker", worker.New(wrk, doneChan, recvChan, errChan))
+	r.Mount("/worker", mapreduce.New(wrk))
 
 	return r
 }

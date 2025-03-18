@@ -36,7 +36,7 @@ func New(conf mr.Config, listener net.Listener, handler http.Handler) *Server {
 	}
 }
 
-func (s *Server) Run(doneChan <-chan struct{}, readyChan chan<- struct{}, errChan <-chan error) error {
+func (s *Server) Run(doneCh <-chan error) error {
 	log.Infoln("[HTTP-SERVER] running http server on:", s.sv.Addr)
 
 	go func() {
@@ -48,18 +48,17 @@ func (s *Server) Run(doneChan <-chan struct{}, readyChan chan<- struct{}, errCha
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// signaling that server has been set up
-	readyChan <- struct{}{}
-
 	// waiting for either kernel signal or app signal
 	select {
-	case <-doneChan:
-		// finished gracefully
 	case <-sigChan:
 		// received kernel signal
-	case err := <-errChan:
-		// received error
-		log.Errorln("[RUNTIME ERROR] error:", err)
+	case err := <-doneCh:
+		// master has finished execution
+		if err != nil {
+			log.Errorln("[RUNTIME ERROR] error:", err)
+		} else {
+			log.Infoln("[MASTER] finishing execution...")
+		}
 	}
 
 	log.Infoln("[HTTP-SERVER] shutting down gracefully")
