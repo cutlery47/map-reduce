@@ -5,7 +5,7 @@ import (
 	"net"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
-	"github.com/cutlery47/map-reduce/worker/internal/domain"
+	"github.com/cutlery47/map-reduce/worker/internal/domain/worker"
 	httpWorker "github.com/cutlery47/map-reduce/worker/internal/domain/worker/http"
 	rabbitWorker "github.com/cutlery47/map-reduce/worker/internal/domain/worker/rabbit"
 	v1 "github.com/cutlery47/map-reduce/worker/internal/routers/http/v1"
@@ -23,7 +23,7 @@ func Run(conf mr.Config) error {
 	}
 
 	var (
-		wrk    domain.Worker                         // worker instance
+		wrk    worker.Worker                         // worker instance
 		doneCh = make(chan error)                    // channel for passing possible errors down to httpserver
 		port   = listener.Addr().(*net.TCPAddr).Port // port on which worker is running
 	)

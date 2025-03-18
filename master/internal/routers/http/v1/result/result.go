@@ -3,11 +3,11 @@ package result
 import (
 	"net/http"
 
-	"github.com/cutlery47/map-reduce/master/internal/domain"
+	"github.com/cutlery47/map-reduce/master/internal/domain/master"
 )
 
 type resultRoutes struct {
-	srv *domain.Master
+	srv *master.Master
 }
 
 func (rr *resultRoutes) mapRes(w http.ResponseWriter, r *http.Request) {

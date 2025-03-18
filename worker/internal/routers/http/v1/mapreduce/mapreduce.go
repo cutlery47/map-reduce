@@ -4,11 +4,11 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/cutlery47/map-reduce/worker/internal/domain"
+	"github.com/cutlery47/map-reduce/worker/internal/domain/worker"
 )
 
 type workerRoutes struct {
-	wrk domain.Worker
+	wrk worker.Worker
 }
 
 func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {

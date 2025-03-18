@@ -5,11 +5,11 @@ import (
 	"net/http"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
-	"github.com/cutlery47/map-reduce/master/internal/domain"
+	"github.com/cutlery47/map-reduce/master/internal/domain/master"
 )
 
 type registerRoutes struct {
-	mst  *domain.Master
+	mst  *master.Master
 	conf mr.Config
 }
 

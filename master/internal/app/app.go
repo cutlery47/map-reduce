@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
-	"github.com/cutlery47/map-reduce/master/internal/domain"
+	"github.com/cutlery47/map-reduce/master/internal/domain/master"
 	prod "github.com/cutlery47/map-reduce/master/internal/domain/producer"
 	httpProducer "github.com/cutlery47/map-reduce/master/internal/domain/producer/http"
 	rabbitProducer "github.com/cutlery47/map-reduce/master/internal/domain/producer/rabbit"
@@ -13,7 +13,9 @@ import (
 )
 
 func Run(conf mr.Config) error {
-	var tp prod.TaskProducer
+	var (
+		tp prod.TaskProducer
+	)
 
 	// creating task producer based on config
 	switch conf.Transport {
@@ -27,7 +29,7 @@ func Run(conf mr.Config) error {
 		tp = rtp
 	}
 
-	mst, err := domain.NewMaster(conf, tp)
+	mst, err := master.New(conf, tp)
 	if err != nil {
 		return fmt.Errorf("[SETUP] error when setting up master: %v", err)
 	}
@@ -41,7 +43,7 @@ func Run(conf mr.Config) error {
 
 	// entrypoint
 	go func() {
-		err := mst.Work()
+		err := mst.Run()
 		if err != nil {
 			// error occured => pass to httpserver
 			errChan <- err

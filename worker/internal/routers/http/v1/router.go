@@ -3,12 +3,12 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/cutlery47/map-reduce/worker/internal/domain"
+	"github.com/cutlery47/map-reduce/worker/internal/domain/worker"
 	"github.com/cutlery47/map-reduce/worker/internal/routers/http/v1/mapreduce"
 	"github.com/go-chi/chi/v5"
 )
 
-func New(wrk domain.Worker) *chi.Mux {
+func New(wrk worker.Worker) *chi.Mux {
 	var (
 		r = chi.NewRouter()
 	)

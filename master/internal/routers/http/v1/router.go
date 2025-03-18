@@ -4,13 +4,13 @@ import (
 	"net/http"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
-	"github.com/cutlery47/map-reduce/master/internal/domain"
+	"github.com/cutlery47/map-reduce/master/internal/domain/master"
 	"github.com/cutlery47/map-reduce/master/internal/routers/http/v1/register"
 	"github.com/cutlery47/map-reduce/master/internal/routers/http/v1/result"
 	"github.com/go-chi/chi/v5"
 )
 
-func New(conf mr.Config, mst *domain.Master) *chi.Mux {
+func New(conf mr.Config, mst *master.Master) *chi.Mux {
 	var (
 		mux = chi.NewMux()
 	)

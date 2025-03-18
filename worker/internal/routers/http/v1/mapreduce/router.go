@@ -1,11 +1,11 @@
 package mapreduce
 
 import (
-	"github.com/cutlery47/map-reduce/worker/internal/domain"
+	"github.com/cutlery47/map-reduce/worker/internal/domain/worker"
 	"github.com/go-chi/chi/v5"
 )
 
-func New(wrk domain.Worker) *chi.Mux {
+func New(wrk worker.Worker) *chi.Mux {
 	var (
 		r  = chi.NewRouter()
 		wr = &workerRoutes{

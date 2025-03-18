@@ -1,4 +1,4 @@
-package domain
+package master
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 	prod "github.com/cutlery47/map-reduce/master/internal/domain/producer"
 )
 
+// default master implementation
 type Master struct {
 	tp prod.TaskProducer
 	rh *core.RegisterHandler
@@ -22,7 +23,7 @@ type Master struct {
 	conf mr.Config
 }
 
-func NewMaster(conf mr.Config, tp prod.TaskProducer) (*Master, error) {
+func New(conf mr.Config, tp prod.TaskProducer) (*Master, error) {
 	var (
 		startCh = make(chan struct{})
 	)
@@ -38,16 +39,16 @@ func NewMaster(conf mr.Config, tp prod.TaskProducer) (*Master, error) {
 }
 
 // primary master logic
-func (ms *Master) Work() error {
+func (sm *Master) Run() error {
 	// preparing directories to store files in
-	if err := ms.fh.CreateDirs(); err != nil {
+	if err := sm.fh.CreateDirs(); err != nil {
 		return err
 	}
 
-	var timr = time.NewTimer(ms.conf.MasterRequestAwaitDur)
+	var timr = time.NewTimer(sm.conf.MasterRequestAwaitDur)
 	// waiting for first request to hit
 	select {
-	case <-ms.startCh:
+	case <-sm.startCh:
 		// start registering workers
 	case <-timr.C:
 		// no requests received
@@ -55,32 +56,32 @@ func (ms *Master) Work() error {
 	}
 
 	// waiting for all workers to connect
-	mappers, reducers, err := ms.rh.Collect()
+	mappers, reducers, err := sm.rh.Collect()
 	if err != nil {
 		return err
 	}
 
 	// split current file into chunks = amount of mappers
-	chunks, err := ms.fh.Split(ms.conf.Mappers)
+	chunks, err := sm.fh.Split(sm.conf.Mappers)
 	if err != nil {
 		return fmt.Errorf("SplitFile: %v", err)
 	}
 
 	// senging tasks to mappers
-	mapResults, err := ms.tp.ProduceMapperTasks(chunks, mappers)
+	mapResults, err := sm.tp.ProduceMapperTasks(chunks, mappers)
 	if err != nil {
-		return fmt.Errorf("ms.sendMapperTasks: %v", err)
+		return fmt.Errorf("sm.sendMapperTasks: %v", err)
 	}
 
 	// sending tasks to reducers
-	redResults, err := ms.tp.ProduceReducerTasks(mapResults, reducers)
+	redResults, err := sm.tp.ProduceReducerTasks(mapResults, reducers)
 	if err != nil {
-		return fmt.Errorf("ms.sendReducerTasks: %v", err)
+		return fmt.Errorf("sm.sendReducerTasks: %v", err)
 	}
 
 	// handling reducer results
 	for i, res := range redResults {
-		if err := ms.fh.CreateResult(fmt.Sprintf("res_%v", i), res); err != nil {
+		if err := sm.fh.CreateResult(fmt.Sprintf("res_%v", i), res); err != nil {
 			return err
 		}
 	}
@@ -91,10 +92,10 @@ func (ms *Master) Work() error {
 
 // passes incoming registration requests to registrar
 // also, initializes collection process on first request
-func (ms *Master) Register(req mr.RegisterRequest) (*mr.Role, error) {
-	ms.once.Do(func() {
-		ms.startCh <- struct{}{}
+func (sm *Master) Register(req mr.RegisterRequest) (*mr.Role, error) {
+	sm.once.Do(func() {
+		sm.startCh <- struct{}{}
 	})
 
-	return ms.rh.Handle(req)
+	return sm.rh.Handle(req)
 }
