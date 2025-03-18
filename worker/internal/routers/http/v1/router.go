@@ -1,4 +1,4 @@
-package handlers
+package routers
 
 import (
 	"net/http"
@@ -17,7 +17,6 @@ func New(wrk worker.Worker) *chi.Mux {
 		w.WriteHeader(200)
 		w.Write([]byte("pong"))
 	})
-
 	r.Mount("/worker", mapreduce.New(wrk))
 
 	return r

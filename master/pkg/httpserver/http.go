@@ -3,43 +3,52 @@ package httpserver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	mr "github.com/cutlery47/map-reduce/mapreduce"
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	defaultAddr            = "127.0.0.1:8080"
+	defaultReadTimeout     = 3 * time.Second
+	defaultWriteTimeout    = 3 * time.Second
+	defaultShutdownTimeout = 3 * time.Second
+)
+
 type Server struct {
-	sv              *http.Server
+	hs              *http.Server
 	shutdownTimeout time.Duration
 }
 
-func New(conf mr.Config, handler http.Handler) *Server {
-	httpserv := &http.Server{
+func New(handler http.Handler, opts ...Option) *Server {
+	hs := &http.Server{
 		Handler:      handler,
-		ReadTimeout:  conf.MasterReadTimeout,
-		WriteTimeout: conf.MasterWriteTimeout,
-		Addr:         fmt.Sprintf("%v:%v", conf.MasterHost, conf.MasterPort),
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
+		Addr:         defaultAddr,
 	}
 
-	serv := &Server{
-		sv:              httpserv,
-		shutdownTimeout: conf.MasterShutdownTimeout,
+	s := &Server{
+		hs:              hs,
+		shutdownTimeout: defaultShutdownTimeout,
 	}
 
-	return serv
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
-func (s *Server) Run(doneChan <-chan struct{}, errChan <-chan error) error {
-	log.Infoln("[HTTP-SERVER] running http server on:", s.sv.Addr)
+func (s *Server) Run(doneCh <-chan error) error {
+	log.Infoln("[HTTP-SERVER] running http server on:", s.hs.Addr)
 
 	go func() {
-		if err := s.sv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		if err := s.hs.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			log.Errorln("[HTTP-SERVER] error:", err)
 		}
 	}()
@@ -47,19 +56,23 @@ func (s *Server) Run(doneChan <-chan struct{}, errChan <-chan error) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// waiting for either kernel signal or app signal
 	select {
 	case <-sigChan:
 		// received kernel signal
-	case <-doneChan:
-		// finished gracefully
-	case err := <-errChan:
-		// received error
-		log.Errorln("[RUNTIME ERROR] error:", err)
+	case err := <-doneCh:
+		// master has finished execution
+		if err != nil {
+			log.Errorln("[RUNTIME ERROR] error:", err)
+		} else {
+			log.Infoln("[MASTER] finishing execution...")
+		}
 	}
 
-	log.Infoln("[HTTP-SERVER] shutting down gracefully")
+	log.Infoln("[HTTP-SERVER] shutting down gracefully...")
+
 	ctx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 	defer cancel()
 
-	return s.sv.Shutdown(ctx)
+	return s.hs.Shutdown(ctx)
 }

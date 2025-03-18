@@ -21,6 +21,7 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 	raw, err := io.ReadAll(mapped)
 	if err != nil {
 		handleErr(err, w)
+		return
 	}
 
 	w.WriteHeader(200)
@@ -37,6 +38,7 @@ func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 	raw, err := io.ReadAll(reduced)
 	if err != nil {
 		handleErr(err, w)
+		return
 	}
 
 	w.WriteHeader(200)

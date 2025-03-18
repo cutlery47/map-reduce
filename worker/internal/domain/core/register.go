@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
@@ -26,7 +26,7 @@ func NewRegisterHandler(conf mr.Config) (*RegisterHandler, error) {
 func (rh *RegisterHandler) Send(ctx context.Context, body mr.RegisterRequest) (*mr.RegisterResponse, error) {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return nil, fmt.Errorf("json.Marshal: %v", err)
+		return nil, err
 	}
 
 	// master addr
@@ -34,18 +34,17 @@ func (rh *RegisterHandler) Send(ctx context.Context, body mr.RegisterRequest) (*
 
 	req, err := http.NewRequestWithContext(ctx, "POST", addr, bytes.NewReader(jsonBody))
 	if err != nil {
-		return nil, fmt.Errorf("http.NewRequestWithContext: %v", err)
+		return nil, err
 	}
 
 	// announcing to master
 	res, err := rh.cl.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("ws.cl.Do: %v", err)
+		return nil, err
 	}
 
 	if res.StatusCode != 200 {
-		msg, _ := io.ReadAll(res.Body)
-		return nil, fmt.Errorf("couldn't register on master node: %v", string(msg))
+		return nil, errors.New("bad status")
 	}
 
 	var (
@@ -54,7 +53,7 @@ func (rh *RegisterHandler) Send(ctx context.Context, body mr.RegisterRequest) (*
 
 	err = json.NewDecoder(res.Body).Decode(&resJson)
 	if err != nil {
-		return nil, fmt.Errorf("json.Decode: %v", err)
+		return nil, err
 	}
 
 	return &resJson, nil

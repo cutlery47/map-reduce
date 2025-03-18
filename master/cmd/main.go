@@ -19,11 +19,11 @@ func main() {
 
 	conf, err := mr.NewConfig(*envLocation)
 	if err != nil {
-		log.Fatalf("[SETUP] error when reading config: %v", err)
+		log.Fatalf("[SETUP] error reading config: %v", err)
 	}
 
 	err = app.Run(*conf)
 	if err != nil {
-		log.Fatalf("[APPLICATION] error: %v", err)
+		log.Fatalf("[SETUP] error setting up master: %v", err)
 	}
 }

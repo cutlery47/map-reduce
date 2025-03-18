@@ -3,7 +3,6 @@ package httpserver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -11,36 +10,46 @@ import (
 	"syscall"
 	"time"
 
-	mr "github.com/cutlery47/map-reduce/mapreduce"
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	defaultReadTimeout     = 3 * time.Second
+	defaultWriteTimeout    = 3 * time.Second
+	defaultShutdownTimeout = 3 * time.Second
+)
+
 type Server struct {
-	sv              *http.Server
+	hs              *http.Server
 	listener        net.Listener
 	shutdownTimeout time.Duration
 }
 
-func New(conf mr.Config, listener net.Listener, handler http.Handler) *Server {
-	httpserv := &http.Server{
+func New(handler http.Handler, listener net.Listener, opts ...Option) *Server {
+	hs := &http.Server{
 		Handler:      handler,
-		ReadTimeout:  conf.WorkerReadTimeout,
-		WriteTimeout: conf.WorkerWriteTimeout,
-		Addr:         fmt.Sprintf("%v:%v", conf.WorkerHost, listener.Addr().(*net.TCPAddr).Port),
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
 	}
 
-	return &Server{
-		sv:              httpserv,
+	s := &Server{
+		hs:              hs,
 		listener:        listener,
-		shutdownTimeout: conf.WorkerShutdownTimeout,
+		shutdownTimeout: defaultShutdownTimeout,
 	}
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
 func (s *Server) Run(doneCh <-chan error) error {
-	log.Infoln("[HTTP-SERVER] running http server on:", s.sv.Addr)
+	log.Infoln("[HTTP-SERVER] running http server on:", s.listener.Addr())
 
 	go func() {
-		if err := s.sv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		if err := s.hs.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 			log.Println("[HTTP-SERVER] error:", err)
 		}
 	}()
@@ -53,18 +62,18 @@ func (s *Server) Run(doneCh <-chan error) error {
 	case <-sigChan:
 		// received kernel signal
 	case err := <-doneCh:
-		// master has finished execution
+		// worker has finished execution
 		if err != nil {
 			log.Errorln("[RUNTIME ERROR] error:", err)
 		} else {
-			log.Infoln("[MASTER] finishing execution...")
+			log.Infoln("[WORKER] finishing execution...")
 		}
 	}
 
-	log.Infoln("[HTTP-SERVER] shutting down gracefully")
+	log.Infoln("[HTTP-SERVER] shutting down gracefully...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 	defer cancel()
 
-	return s.sv.Shutdown(ctx)
+	return s.hs.Shutdown(ctx)
 }

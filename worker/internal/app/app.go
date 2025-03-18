@@ -2,13 +2,14 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"net"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/worker/internal/domain/worker"
 	httpWorker "github.com/cutlery47/map-reduce/worker/internal/domain/worker/http"
 	rabbitWorker "github.com/cutlery47/map-reduce/worker/internal/domain/worker/rabbit"
-	v1 "github.com/cutlery47/map-reduce/worker/internal/routers/http/v1"
+	routers "github.com/cutlery47/map-reduce/worker/internal/routers/http/v1"
 	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
 	log "github.com/sirupsen/logrus"
 )
@@ -33,13 +34,13 @@ func Run(conf mr.Config) error {
 	case "HTTP":
 		httpWrk, err := httpWorker.New(conf, port)
 		if err != nil {
-			return err
+			return fmt.Errorf("error setting up http worker: %v", err)
 		}
 		wrk = httpWrk
 	case "QUEUE":
 		rabbitWrk, err := rabbitWorker.New(conf)
 		if err != nil {
-			return err
+			return fmt.Errorf("error setting up rabbitmq worker: %v", err)
 		}
 		wrk = rabbitWrk
 	default:
@@ -51,8 +52,12 @@ func Run(conf mr.Config) error {
 	}()
 
 	// creating http-controller for receiving tasks from master
-	rt := v1.New(wrk)
+	rt := routers.New(wrk)
 
 	// running http server
-	return httpserver.New(conf, listener, rt).Run(doneCh)
+	return httpserver.New(rt, listener,
+		httpserver.WithReadTimeout(conf.WorkerReadTimeout),
+		httpserver.WithWriteTimeout(conf.WorkerWriteTimeout),
+		httpserver.WithShutdownTimeout(conf.WorkerShutdownTimeout),
+	).Run(doneCh)
 }
