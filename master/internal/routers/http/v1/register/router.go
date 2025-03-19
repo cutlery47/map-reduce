@@ -15,7 +15,7 @@ func New(conf mr.Config, mst *master.Master) *chi.Mux {
 		}
 	)
 
-	mux.Post("/register", rr.register)
+	mux.Post("/", rr.register)
 
 	return mux
 }

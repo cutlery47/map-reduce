@@ -9,6 +9,7 @@ import (
 	mr "github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/master/internal/domain/core"
 	prod "github.com/cutlery47/map-reduce/master/internal/domain/producer"
+	log "github.com/sirupsen/logrus"
 )
 
 // default master implementation
@@ -24,32 +25,31 @@ type Master struct {
 }
 
 func New(conf mr.Config, tp prod.TaskProducer) (*Master, error) {
-	var (
-		startCh = make(chan struct{})
-	)
-
 	return &Master{
 		tp:      tp,
 		rh:      core.NewRegisterHandler(conf),
 		fh:      core.NewFileHandler(conf),
 		conf:    conf,
 		once:    sync.Once{},
-		startCh: startCh,
+		startCh: make(chan struct{}),
 	}, nil
 }
 
 // primary master logic
 func (sm *Master) Run() error {
 	// preparing directories to store files in
+	log.Infoln("[MASTER] creating necessary directories...")
 	if err := sm.fh.CreateDirs(); err != nil {
 		return err
 	}
 
 	var timr = time.NewTimer(sm.conf.MasterRequestAwaitDur)
+	log.Infoln("[MASTER] waiting for worker to register...")
+
 	// waiting for first request to hit
 	select {
 	case <-sm.startCh:
-		// start registering workers
+		log.Infoln("[MASTER] registration initiated...")
 	case <-timr.C:
 		// no requests received
 		return errors.New("no requests received")
@@ -97,5 +97,5 @@ func (sm *Master) Register(req mr.RegisterRequest) (*mr.Role, error) {
 		sm.startCh <- struct{}{}
 	})
 
-	return sm.rh.Handle(req)
+	return sm.rh.Register(req)
 }

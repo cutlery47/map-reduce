@@ -44,7 +44,7 @@ func New(handler http.Handler, opts ...Option) *Server {
 	return s
 }
 
-func (s *Server) Run(doneCh <-chan error) error {
+func (s *Server) Run(doneCh <-chan AppSignal) error {
 	log.Infoln("[HTTP-SERVER] running http server on:", s.hs.Addr)
 
 	go func() {
@@ -60,12 +60,12 @@ func (s *Server) Run(doneCh <-chan error) error {
 	select {
 	case <-sigChan:
 		// received kernel signal
-	case err := <-doneCh:
-		// master has finished execution
-		if err != nil {
-			log.Errorln("[RUNTIME ERROR] error:", err)
+	case sig := <-doneCh:
+		// received application signal
+		if sig.Error != nil {
+			log.Errorln("[RUNTIME ERROR] error:", sig.Error)
 		} else {
-			log.Infoln("[MASTER] finishing execution...")
+			log.Infoln("[HTTP-SERVER] finishing execution:", sig.Message)
 		}
 	}
 

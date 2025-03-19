@@ -68,7 +68,7 @@ func (w *HTTPWorker) Run() error {
 	// if terminate request was sent by master -> terminate
 
 	var (
-		timer = time.NewTimer(w.conf.WorkerAwaitDur)
+		timer = time.NewTimer(w.conf.RegisterDur + w.conf.WorkerAwaitDur)
 	)
 
 	for {

@@ -10,7 +10,7 @@ import (
 	httpWorker "github.com/cutlery47/map-reduce/worker/internal/domain/worker/http"
 	rabbitWorker "github.com/cutlery47/map-reduce/worker/internal/domain/worker/rabbit"
 	routers "github.com/cutlery47/map-reduce/worker/internal/routers/http/v1"
-	"github.com/cutlery47/map-reduce/worker/pkg/httpserver"
+	hserv "github.com/cutlery47/map-reduce/worker/pkg/httpserver"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,7 +25,7 @@ func Run(conf mr.Config) error {
 
 	var (
 		wrk    worker.Worker                         // worker instance
-		doneCh = make(chan error)                    // channel for passing possible errors down to httpserver
+		doneCh = make(chan hserv.AppSignal)          // channel for passing possible errors down to httpserver
 		port   = listener.Addr().(*net.TCPAddr).Port // port on which worker is running
 	)
 
@@ -48,16 +48,25 @@ func Run(conf mr.Config) error {
 	}
 
 	go func() {
-		doneCh <- wrk.Run()
+		var sig hserv.AppSignal
+
+		err := wrk.Run()
+		if err != nil {
+			sig.Error = err
+		} else {
+			sig.Message = "Success"
+		}
+
+		doneCh <- sig
 	}()
 
 	// creating http-controller for receiving tasks from master
 	rt := routers.New(wrk)
 
 	// running http server
-	return httpserver.New(rt, listener,
-		httpserver.WithReadTimeout(conf.WorkerReadTimeout),
-		httpserver.WithWriteTimeout(conf.WorkerWriteTimeout),
-		httpserver.WithShutdownTimeout(conf.WorkerShutdownTimeout),
+	return hserv.New(rt, listener,
+		hserv.WithReadTimeout(conf.WorkerReadTimeout),
+		hserv.WithWriteTimeout(conf.WorkerWriteTimeout),
+		hserv.WithShutdownTimeout(conf.WorkerShutdownTimeout),
 	).Run(doneCh)
 }

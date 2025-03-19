@@ -45,7 +45,7 @@ func New(handler http.Handler, listener net.Listener, opts ...Option) *Server {
 	return s
 }
 
-func (s *Server) Run(doneCh <-chan error) error {
+func (s *Server) Run(doneCh <-chan AppSignal) error {
 	log.Infoln("[HTTP-SERVER] running http server on:", s.listener.Addr())
 
 	go func() {
@@ -61,12 +61,12 @@ func (s *Server) Run(doneCh <-chan error) error {
 	select {
 	case <-sigChan:
 		// received kernel signal
-	case err := <-doneCh:
+	case sig := <-doneCh:
 		// worker has finished execution
-		if err != nil {
-			log.Errorln("[RUNTIME ERROR] error:", err)
+		if sig.Error != nil {
+			log.Errorln("[RUNTIME ERROR] error:", sig.Error)
 		} else {
-			log.Infoln("[WORKER] finishing execution...")
+			log.Infoln("[HTTP-SERVER] finishing execution...")
 		}
 	}
 

@@ -10,16 +10,20 @@ import (
 	httpProducer "github.com/cutlery47/map-reduce/master/internal/domain/producer/http"
 	rabbitProducer "github.com/cutlery47/map-reduce/master/internal/domain/producer/rabbit"
 	routers "github.com/cutlery47/map-reduce/master/internal/routers/http/v1"
-	"github.com/cutlery47/map-reduce/master/pkg/httpserver"
+	hserv "github.com/cutlery47/map-reduce/master/pkg/httpserver"
 	log "github.com/sirupsen/logrus"
 )
 
 func Run(conf mr.Config) error {
 	log.Infoln("[SETUP] setting up master...")
 
+	if conf.Mappers == 0 || conf.Reducers == 0 {
+		return errors.New("worker number must be positive")
+	}
+
 	var (
-		tp     prod.TaskProducer  // task producer instance
-		doneCh = make(chan error) // channel for passing possible errors down to httpserver
+		tp     prod.TaskProducer            // task producer instance
+		doneCh = make(chan hserv.AppSignal) // channel for passing signals down to httpserver
 	)
 
 	// creating task producer based on transport
@@ -42,8 +46,18 @@ func Run(conf mr.Config) error {
 		return fmt.Errorf("error setting up master: %v", err)
 	}
 
+	// running master
 	go func() {
-		doneCh <- mst.Run()
+		var sig hserv.AppSignal
+
+		err := mst.Run()
+		if err != nil {
+			sig.Error = err
+		} else {
+			sig.Message = "Success"
+		}
+
+		doneCh <- sig
 	}()
 
 	var (
@@ -52,10 +66,10 @@ func Run(conf mr.Config) error {
 	)
 
 	// running http server
-	return httpserver.New(rt,
-		httpserver.WithAddr(addr),
-		httpserver.WithReadTimeout(conf.MasterReadTimeout),
-		httpserver.WithWriteTimeout(conf.MasterWriteTimeout),
-		httpserver.WithShutdownTimeout(conf.MasterShutdownTimeout),
+	return hserv.New(rt,
+		hserv.WithAddr(addr),
+		hserv.WithReadTimeout(conf.MasterReadTimeout),
+		hserv.WithWriteTimeout(conf.MasterWriteTimeout),
+		hserv.WithShutdownTimeout(conf.MasterShutdownTimeout),
 	).Run(doneCh)
 }

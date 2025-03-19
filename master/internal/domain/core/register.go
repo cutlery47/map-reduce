@@ -28,7 +28,9 @@ func NewRegisterHandler(conf mr.Config) *RegisterHandler {
 
 // handles incoming registration requests
 // determines whether worker is either a mapper or a reducer
-func (rh *RegisterHandler) Handle(req mr.RegisterRequest) (*mr.Role, error) {
+func (rh *RegisterHandler) Register(req mr.RegisterRequest) (*mr.Role, error) {
+	log.Infof("[MASTER-REGISTER] handling worker %v:%v request\n", req.Addr.Host, req.Addr.Port)
+
 	rh.mu.Lock()
 	defer rh.mu.Unlock()
 
@@ -44,13 +46,15 @@ func (rh *RegisterHandler) Handle(req mr.RegisterRequest) (*mr.Role, error) {
 			Host: req.Addr.Host,
 			Port: req.Addr.Port,
 		})
+		log.Infof("[MASTER-REGISTER] worker %v:%v has been assigned to MAPPERS\n", req.Addr.Host, req.Addr.Port)
 		return &mr.Mapper, nil
 	case reducers < rh.conf.Reducers:
 		// assign worker to reducer, if possible
-		rh.mapAddrs = append(rh.redAddrs, mr.Addr{
+		rh.redAddrs = append(rh.redAddrs, mr.Addr{
 			Host: req.Addr.Host,
 			Port: req.Addr.Port,
 		})
+		log.Infof("[MASTER-REGISTER] worker %v:%v has been assigned to REDUCERS\n", req.Addr.Host, req.Addr.Port)
 		return &mr.Reducer, nil
 	}
 
@@ -66,7 +70,7 @@ func (rh *RegisterHandler) Collect() ([]mr.Addr, []mr.Addr, error) {
 		timr  = time.NewTimer(rh.conf.RegisterDur)
 	)
 
-	for curr != total {
+	for ; curr != total; time.Sleep(1 * time.Second) {
 		// count current registered workers
 		rh.mu.Lock()
 		curr = len(rh.mapAddrs) + len(rh.redAddrs)
@@ -77,10 +81,10 @@ func (rh *RegisterHandler) Collect() ([]mr.Addr, []mr.Addr, error) {
 			// timed out
 			return nil, nil, fmt.Errorf("expected %v workers, connected: %v", total, curr)
 		default:
-			log.Infoln("currently connected:", curr)
+			log.Infoln("[MASTER-REGISTER] currently connected:", curr)
+			log.Infoln("[MASTER-REGISTER] mappers:", rh.mapAddrs)
+			log.Infoln("[MASTER-REGISTER] reducer:", rh.redAddrs)
 		}
-
-		time.Sleep(1 * time.Second)
 	}
 
 	return rh.mapAddrs, rh.redAddrs, nil
