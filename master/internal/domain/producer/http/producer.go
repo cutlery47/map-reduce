@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 
@@ -47,55 +46,69 @@ func (htp *httpTaskProducer) produce(input []io.Reader, addrs []mr.Addr, toMappe
 		errCh  = make(chan error, len(addrs)) // channel for passing errors from goroutines
 	)
 
-	// check where task is bound to (toMapper value)
-	// if toMapper == map -- send task to the map endpoint of a worker
-	// else -- to the reduce endpoint
+	// check where job is bound to
 	if toMapper == true {
 		suffix = "map"
 	} else {
 		suffix = "reduce"
 	}
 
-	// asynchronously sending each worker a task
+	// anon function for sending jobs
+	sendFunc := func(addr mr.Addr, idx int) error {
+		defer wg.Done()
+
+		var (
+			workerAddr = fmt.Sprintf("http://%v:%v/api/v1/worker/%v", addr.Host, addr.Port, suffix)
+		)
+
+		res, err := htp.cl.Post(workerAddr, "application/json", input[idx])
+		if err != nil {
+			return err
+		}
+
+		if res.StatusCode != http.StatusOK {
+			resBody, err := io.ReadAll(res.Body)
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("registration failed: %v", string(resBody))
+		}
+
+		if res == nil {
+			return err
+		}
+
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+
+		// storing reduce results
+		mu.Lock()
+		output = append(output, body)
+		mu.Unlock()
+
+		return nil
+	}
+
+	// asynchronously sending each worker a job
 	for i, addr := range addrs {
 		wg.Add(1)
 
 		go func() {
-			defer wg.Done()
-
-			res, err := htp.cl.Post(fmt.Sprintf("http://%v:%v/%v", addr.Host, addr.Port, suffix), "application/json", input[i])
+			err := sendFunc(addr, i)
 			if err != nil {
-				errCh <- fmt.Errorf("ms.cl.Post: %v", err)
-				return
+				errCh <- err
 			}
-
-			if res == nil {
-				errCh <- fmt.Errorf("%v:%v returned a nil response", addr.Host, addr.Port)
-				return
-			}
-
-			body, err := io.ReadAll(res.Body)
-			if err != nil {
-				errCh <- fmt.Errorf("ms.cl.Post: %v", err)
-				return
-			}
-
-			// storing reduce results
-			mu.Lock()
-			output = append(output, body)
-			mu.Unlock()
 		}()
 	}
 
 	wg.Wait()
 
-	// check if any errors occurred when sending tasks
 	select {
 	case err := <-errCh:
-		log.Println("received error:", err)
 		return nil, err
 	default:
-		log.Printf("all %v tasks sent successfully\n", suffix)
 	}
 
 	return output, nil

@@ -65,7 +65,7 @@ func (s *Server) Run(doneCh <-chan AppSignal) error {
 		if sig.Error != nil {
 			log.Errorln("[RUNTIME ERROR] error:", sig.Error)
 		} else {
-			log.Infoln("[HTTP-SERVER] finishing execution:", sig.Message)
+			log.Infoln("[MASTER] finished with message:", sig.Message)
 		}
 	}
 

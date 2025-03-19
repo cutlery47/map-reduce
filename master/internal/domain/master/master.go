@@ -37,7 +37,6 @@ func New(conf mr.Config, tp prod.TaskProducer) (*Master, error) {
 
 // primary master logic
 func (sm *Master) Run() error {
-	// preparing directories to store files in
 	log.Infoln("[MASTER] creating necessary directories...")
 	if err := sm.fh.CreateDirs(); err != nil {
 		return err
@@ -46,7 +45,6 @@ func (sm *Master) Run() error {
 	var timr = time.NewTimer(sm.conf.MasterRequestAwaitDur)
 	log.Infoln("[MASTER] waiting for worker to register...")
 
-	// waiting for first request to hit
 	select {
 	case <-sm.startCh:
 		log.Infoln("[MASTER] registration initiated...")
@@ -62,32 +60,35 @@ func (sm *Master) Run() error {
 	}
 
 	// split current file into chunks = amount of mappers
+	log.Infoln("[MASTER] splitting provided file into chunks...")
 	chunks, err := sm.fh.Split(sm.conf.Mappers)
 	if err != nil {
-		return fmt.Errorf("SplitFile: %v", err)
+		return err
 	}
 
 	// senging tasks to mappers
+	log.Infoln("[MASTER] producing mapper tasks...")
 	mapResults, err := sm.tp.ProduceMapperTasks(chunks, mappers)
 	if err != nil {
-		return fmt.Errorf("sm.sendMapperTasks: %v", err)
+		return err
 	}
 
 	// sending tasks to reducers
+	log.Infoln("[MASTER] producing reducer tasks...")
 	redResults, err := sm.tp.ProduceReducerTasks(mapResults, reducers)
 	if err != nil {
-		return fmt.Errorf("sm.sendReducerTasks: %v", err)
+		return err
 	}
 
 	// handling reducer results
+	log.Infoln("[MASTER] combining results...")
 	for i, res := range redResults {
 		if err := sm.fh.CreateResult(fmt.Sprintf("res_%v", i), res); err != nil {
 			return err
 		}
 	}
 
-	// shutdown signal
-	return fmt.Errorf("finished map-reduce")
+	return nil
 }
 
 // passes incoming registration requests to registrar

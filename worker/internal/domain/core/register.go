@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,17 +35,8 @@ func (rh *RegisterHandler) Register(addr mr.Addr) (*mr.RegisterResponse, error) 
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "POST", masterAddr, bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := rh.cl.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if res.StatusCode != 200 {
+	res, err := rh.cl.Post(masterAddr, "application/json", bytes.NewReader(jsonBody))
+	if res.StatusCode != http.StatusOK {
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, err

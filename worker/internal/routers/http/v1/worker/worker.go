@@ -26,7 +26,7 @@ func (wr *workerRoutes) handleMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(200)
+	w.WriteHeader(http.StatusOK)
 	w.Write(raw)
 }
 
@@ -43,7 +43,7 @@ func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(200)
+	w.WriteHeader(http.StatusOK)
 	w.Write(raw)
 }
 

@@ -33,5 +33,5 @@ func (rr *registerRoutes) register(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(mr.RegisterResponse{
 		Role: *role,
 	})
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusOK)
 }
