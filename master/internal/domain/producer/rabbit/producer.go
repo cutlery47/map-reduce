@@ -5,6 +5,7 @@ import (
 	"io"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/models"
 	"github.com/rabbitmq/amqp091-go"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -27,10 +28,10 @@ func New(conf mr.Config) (*rabbitTaskProducer, error) {
 	}, nil
 }
 
-func (rtp *rabbitTaskProducer) ProduceMapperTasks(input []io.Reader, mappers []mr.Addr) ([][]byte, error) {
+func (rtp *rabbitTaskProducer) ProduceMapperTasks(input []io.Reader, mappers []models.Addr) ([][]byte, error) {
 	return nil, nil
 }
 
-func (rtp *rabbitTaskProducer) ProduceReducerTasks(input [][]byte, reducers []mr.Addr) ([][]byte, error) {
+func (rtp *rabbitTaskProducer) ProduceReducerTasks(input [][]byte, reducers []models.Addr) ([][]byte, error) {
 	return nil, nil
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/requests"
 	"github.com/cutlery47/map-reduce/master/internal/domain/master"
 )
 
@@ -14,7 +15,7 @@ type registerRoutes struct {
 }
 
 func (rr *registerRoutes) register(w http.ResponseWriter, r *http.Request) {
-	var req mr.RegisterRequest
+	var req requests.RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		handleErr(err, w)
 		return
@@ -30,7 +31,7 @@ func (rr *registerRoutes) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(mr.RegisterResponse{
+	json.NewEncoder(w).Encode(requests.RegisterResponse{
 		Role: *role,
 	})
 	w.WriteHeader(http.StatusOK)

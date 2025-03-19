@@ -4,6 +4,7 @@ import (
 	"io"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/models"
 	"github.com/cutlery47/map-reduce/worker/internal/domain/core"
 )
 
@@ -82,4 +83,4 @@ func (w *RabbitWorker) Reduce(input io.Reader) (io.Reader, error) {
 	return mr.ReducerFunc(input)
 }
 
-func (w *RabbitWorker) Terminate(msg mr.TerminateMessage) {}
+func (w *RabbitWorker) Terminate(msg models.TerminateMessage) {}

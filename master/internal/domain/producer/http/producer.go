@@ -2,12 +2,14 @@ package producer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"sync"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/models"
 )
 
 type httpTaskProducer struct {
@@ -22,12 +24,12 @@ func New(conf mr.Config) *httpTaskProducer {
 }
 
 // produce tasks for mappers over http
-func (htp *httpTaskProducer) ProduceMapperTasks(input []io.Reader, mappers []mr.Addr) ([][]byte, error) {
+func (htp *httpTaskProducer) ProduceMapperTasks(input []io.Reader, mappers []models.Addr) ([][]byte, error) {
 	return htp.produce(input, mappers, true)
 }
 
 // produce tasks for reducers over http
-func (htp *httpTaskProducer) ProduceReducerTasks(in [][]byte, reducers []mr.Addr) ([][]byte, error) {
+func (htp *httpTaskProducer) ProduceReducerTasks(in [][]byte, reducers []models.Addr) ([][]byte, error) {
 	input := make([]io.Reader, len(in))
 
 	for i, res := range in {
@@ -37,7 +39,7 @@ func (htp *httpTaskProducer) ProduceReducerTasks(in [][]byte, reducers []mr.Addr
 	return htp.produce(input, reducers, false)
 }
 
-func (htp *httpTaskProducer) produce(input []io.Reader, addrs []mr.Addr, toMapper bool) ([][]byte, error) {
+func (htp *httpTaskProducer) produce(input []io.Reader, addrs []models.Addr, toMapper bool) ([][]byte, error) {
 	var (
 		output [][]byte
 		wg     sync.WaitGroup
@@ -53,15 +55,15 @@ func (htp *httpTaskProducer) produce(input []io.Reader, addrs []mr.Addr, toMappe
 		suffix = "reduce"
 	}
 
-	// anon function for sending jobs
-	sendFunc := func(addr mr.Addr, idx int) error {
+	// function for sending jobs
+	sendFunc := func(addr models.Addr, chunk io.Reader) error {
 		defer wg.Done()
 
 		var (
 			workerAddr = fmt.Sprintf("http://%v:%v/api/v1/worker/%v", addr.Host, addr.Port, suffix)
 		)
 
-		res, err := htp.cl.Post(workerAddr, "application/json", input[idx])
+		res, err := htp.cl.Post(workerAddr, "application/json", chunk)
 		if err != nil {
 			return err
 		}
@@ -75,7 +77,7 @@ func (htp *httpTaskProducer) produce(input []io.Reader, addrs []mr.Addr, toMappe
 		}
 
 		if res == nil {
-			return err
+			return errors.New("empty worker response")
 		}
 
 		body, err := io.ReadAll(res.Body)
@@ -91,12 +93,12 @@ func (htp *httpTaskProducer) produce(input []io.Reader, addrs []mr.Addr, toMappe
 		return nil
 	}
 
-	// asynchronously sending each worker a job
+	// sending each worker a job in parallel
 	for i, addr := range addrs {
 		wg.Add(1)
 
 		go func() {
-			err := sendFunc(addr, i)
+			err := sendFunc(addr, input[i])
 			if err != nil {
 				errCh <- err
 			}

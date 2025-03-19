@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/requests"
 	"github.com/cutlery47/map-reduce/worker/internal/domain/worker"
 )
 
@@ -49,7 +49,7 @@ func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 
 func (wr *workerRoutes) handleTerminate(w http.ResponseWriter, r *http.Request) {
 	var (
-		msg mr.TerminateRequest
+		msg requests.TerminateRequest
 	)
 
 	err := json.NewDecoder(r.Body).Decode(&msg)

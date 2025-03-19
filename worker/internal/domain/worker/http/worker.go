@@ -9,6 +9,7 @@ import (
 	"time"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/models"
 	"github.com/cutlery47/map-reduce/worker/internal/domain/core"
 	log "github.com/sirupsen/logrus"
 )
@@ -17,13 +18,13 @@ type HTTPWorker struct {
 	reg *core.RegisterHandler
 	cl  *http.Client
 
-	role *mr.Role
+	role *models.Role
 	port int
 	conf mr.Config
 
-	recvCh chan struct{}            // channel for signaling that a job has been received
-	doneCh chan error               // channel for signaling that a job has been handled
-	termCh chan mr.TerminateMessage // channel for signaling that worker must terminate
+	recvCh chan struct{}                // channel for signaling that a job has been received
+	doneCh chan error                   // channel for signaling that a job has been handled
+	termCh chan models.TerminateMessage // channel for signaling that worker must terminate
 }
 
 func New(conf mr.Config, port int) (*HTTPWorker, error) {
@@ -39,13 +40,13 @@ func New(conf mr.Config, port int) (*HTTPWorker, error) {
 		conf:   conf,
 		recvCh: make(chan struct{}),
 		doneCh: make(chan error),
-		termCh: make(chan mr.TerminateMessage),
+		termCh: make(chan models.TerminateMessage),
 	}, nil
 }
 
 func (w *HTTPWorker) Run() error {
 	// registering on master
-	res, err := w.reg.Register(mr.Addr{
+	res, err := w.reg.Register(models.Addr{
 		Host: w.conf.WorkerHost,
 		Port: strconv.Itoa(w.port),
 	})
@@ -118,6 +119,6 @@ func (w *HTTPWorker) Reduce(input io.Reader) (io.Reader, error) {
 }
 
 // tells worker to stop execution
-func (w *HTTPWorker) Terminate(msg mr.TerminateMessage) {
+func (w *HTTPWorker) Terminate(msg models.TerminateMessage) {
 	w.termCh <- msg
 }

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/models"
+	"github.com/cutlery47/map-reduce/mapreduce/requests"
 	"github.com/cutlery47/map-reduce/master/internal/domain/core"
 	prod "github.com/cutlery47/map-reduce/master/internal/domain/producer"
 	log "github.com/sirupsen/logrus"
@@ -93,7 +95,7 @@ func (sm *Master) Run() error {
 
 // passes incoming registration requests to registrar
 // also, initializes collection process on first request
-func (sm *Master) Register(req mr.RegisterRequest) (*mr.Role, error) {
+func (sm *Master) Register(req requests.RegisterRequest) (*models.Role, error) {
 	sm.once.Do(func() {
 		sm.startCh <- struct{}{}
 	})

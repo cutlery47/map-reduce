@@ -7,20 +7,22 @@ import (
 	"time"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/models"
+	"github.com/cutlery47/map-reduce/mapreduce/requests"
 	log "github.com/sirupsen/logrus"
 )
 
 // worker registration handler
 type RegisterHandler struct {
-	mapAddrs, redAddrs []mr.Addr // slices for storing registered worker addresses
+	mapAddrs, redAddrs []models.Addr // slices for storing registered worker addresses
 	mu                 sync.Mutex
 	conf               mr.Config
 }
 
 func NewRegisterHandler(conf mr.Config) *RegisterHandler {
 	return &RegisterHandler{
-		mapAddrs: []mr.Addr{},
-		redAddrs: []mr.Addr{},
+		mapAddrs: []models.Addr{},
+		redAddrs: []models.Addr{},
 		mu:       sync.Mutex{},
 		conf:     conf,
 	}
@@ -28,7 +30,7 @@ func NewRegisterHandler(conf mr.Config) *RegisterHandler {
 
 // handles incoming registration requests
 // determines whether worker is either a mapper or a reducer
-func (rh *RegisterHandler) Register(req mr.RegisterRequest) (*mr.Role, error) {
+func (rh *RegisterHandler) Register(req requests.RegisterRequest) (*models.Role, error) {
 	log.Infof("[MASTER-REGISTER] handling worker %v:%v request\n", req.Addr.Host, req.Addr.Port)
 
 	rh.mu.Lock()
@@ -42,7 +44,7 @@ func (rh *RegisterHandler) Register(req mr.RegisterRequest) (*mr.Role, error) {
 	switch {
 	case mappers < rh.conf.Mappers:
 		// assign worker to mapper, if possible
-		rh.mapAddrs = append(rh.mapAddrs, mr.Addr{
+		rh.mapAddrs = append(rh.mapAddrs, models.Addr{
 			Host: req.Addr.Host,
 			Port: req.Addr.Port,
 		})
@@ -50,7 +52,7 @@ func (rh *RegisterHandler) Register(req mr.RegisterRequest) (*mr.Role, error) {
 		return &mr.Mapper, nil
 	case reducers < rh.conf.Reducers:
 		// assign worker to reducer, if possible
-		rh.redAddrs = append(rh.redAddrs, mr.Addr{
+		rh.redAddrs = append(rh.redAddrs, models.Addr{
 			Host: req.Addr.Host,
 			Port: req.Addr.Port,
 		})
@@ -63,7 +65,7 @@ func (rh *RegisterHandler) Register(req mr.RegisterRequest) (*mr.Role, error) {
 
 // waits for workers to connect
 // returns error if not enough workers have connected
-func (rh *RegisterHandler) Collect() ([]mr.Addr, []mr.Addr, error) {
+func (rh *RegisterHandler) Collect() ([]models.Addr, []models.Addr, error) {
 	var (
 		curr  = 0
 		total = rh.conf.Mappers + rh.conf.Reducers // total amount of possible workers

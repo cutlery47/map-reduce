@@ -3,7 +3,7 @@ package worker
 import (
 	"io"
 
-	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/models"
 )
 
 // general interface for any worker
@@ -15,5 +15,5 @@ type Worker interface {
 	// starts reduce procedure
 	Reduce(input io.Reader) (io.Reader, error)
 	// terminates worker
-	Terminate(msg mr.TerminateMessage)
+	Terminate(msg models.TerminateMessage)
 }

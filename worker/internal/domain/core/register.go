@@ -8,6 +8,8 @@ import (
 	"net/http"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
+	"github.com/cutlery47/map-reduce/mapreduce/models"
+	"github.com/cutlery47/map-reduce/mapreduce/requests"
 )
 
 type RegisterHandler struct {
@@ -22,10 +24,10 @@ func NewRegisterHandler(conf mr.Config) (*RegisterHandler, error) {
 	}, nil
 }
 
-func (rh *RegisterHandler) Register(addr mr.Addr) (*mr.RegisterResponse, error) {
+func (rh *RegisterHandler) Register(addr models.Addr) (*requests.RegisterResponse, error) {
 	var (
 		masterAddr = fmt.Sprintf("http://%v:%v/api/v1/register/", rh.conf.MasterHost, rh.conf.MasterPort)
-		body       = mr.RegisterRequest{
+		body       = requests.RegisterRequest{
 			Addr: addr,
 		}
 	)
@@ -45,7 +47,7 @@ func (rh *RegisterHandler) Register(addr mr.Addr) (*mr.RegisterResponse, error) 
 	}
 
 	var (
-		resJson mr.RegisterResponse
+		resJson requests.RegisterResponse
 	)
 
 	err = json.NewDecoder(res.Body).Decode(&resJson)
