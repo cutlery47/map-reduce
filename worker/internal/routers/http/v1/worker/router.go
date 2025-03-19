@@ -1,4 +1,4 @@
-package mapreduce
+package worker
 
 import (
 	"github.com/cutlery47/map-reduce/worker/internal/domain/worker"
@@ -15,6 +15,7 @@ func New(wrk worker.Worker) *chi.Mux {
 
 	r.Post("/map", wr.handleMap)
 	r.Post("/reduce", wr.handleReduce)
+	r.Post("/terminate", wr.handleTerminate)
 
 	return r
 }

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	mr "github.com/cutlery47/map-reduce/mapreduce"
@@ -23,28 +23,35 @@ func NewRegisterHandler(conf mr.Config) (*RegisterHandler, error) {
 	}, nil
 }
 
-func (rh *RegisterHandler) Send(ctx context.Context, body mr.RegisterRequest) (*mr.RegisterResponse, error) {
+func (rh *RegisterHandler) Register(addr mr.Addr) (*mr.RegisterResponse, error) {
+	var (
+		masterAddr = fmt.Sprintf("http://%v:%v/api/v1/register/", rh.conf.MasterHost, rh.conf.MasterPort)
+		body       = mr.RegisterRequest{
+			Addr: addr,
+		}
+	)
+
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 
-	// master addr
-	addr := fmt.Sprintf("http://%v:%v/register", rh.conf.MasterHost, rh.conf.MasterPort)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", addr, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", masterAddr, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, err
 	}
 
-	// announcing to master
 	res, err := rh.cl.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
 	if res.StatusCode != 200 {
-		return nil, errors.New("bad status")
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("registration failed: %v", string(resBody))
 	}
 
 	var (

@@ -1,7 +1,7 @@
 package httpworker
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,9 +17,13 @@ type HTTPWorker struct {
 	reg *core.RegisterHandler
 	cl  *http.Client
 
-	recvCh chan struct{} // channel for signaling that a task was received
-	port   int
-	conf   mr.Config
+	role *mr.Role
+	port int
+	conf mr.Config
+
+	recvCh chan struct{}            // channel for signaling that a job has been received
+	doneCh chan error               // channel for signaling that a job has been handled
+	termCh chan mr.TerminateMessage // channel for signaling that worker must terminate
 }
 
 func New(conf mr.Config, port int) (*HTTPWorker, error) {
@@ -31,46 +35,89 @@ func New(conf mr.Config, port int) (*HTTPWorker, error) {
 	return &HTTPWorker{
 		reg:    reg,
 		cl:     http.DefaultClient,
-		recvCh: make(chan struct{}),
 		port:   port,
 		conf:   conf,
+		recvCh: make(chan struct{}),
+		doneCh: make(chan error),
+		termCh: make(chan mr.TerminateMessage),
 	}, nil
 }
 
 func (w *HTTPWorker) Run() error {
-	ctx, cancel := context.WithTimeout(context.Background(), w.conf.WorkerAwaitDur)
-	defer cancel()
-
-	body := mr.RegisterRequest{
-		Addr: mr.Addr{
-			Host: w.conf.WorkerHost,
-			Port: strconv.Itoa(w.port),
-		},
-	}
-
 	// registering on master
-	_, err := w.reg.Send(ctx, body)
+	res, err := w.reg.Register(mr.Addr{
+		Host: w.conf.WorkerHost,
+		Port: strconv.Itoa(w.port),
+	})
 	if err != nil {
 		return err
 	}
 
-	// waiting for new jobs
-	// terminate worker if no jobs were received
-	timer := time.NewTimer(w.conf.WorkerAwaitDur)
-	log.Infoln("waiting for tasks for:", w.conf.WorkerAwaitDur)
-
-	select {
-	case <-w.recvCh:
-		return nil
-	case <-timer.C:
-		return fmt.Errorf("didn't receive any tasks")
+	if res == nil {
+		// this shouldn't happen, however just in case
+		return errors.New("received nil registration response")
 	}
+
+	// assigning role from response
+	w.role = &res.Role
+
+	// receive jobs from master until theres no more
+	//
+	// on each received job the job timer is reset
+	// if no jobs were sent during the job timer duration -> terminate
+	// if terminate request was sent by master -> terminate
+
+	var (
+		timer = time.NewTimer(w.conf.WorkerAwaitDur)
+	)
+
+	for {
+		log.Infoln("[WORKER] waiting for jobs...")
+
+		select {
+		case <-w.recvCh:
+			log.Infoln("[WORKER] received a job")
+			// proceed to job handling
+		case msg := <-w.termCh:
+			return fmt.Errorf("received terminate message: %v, with code: %v", msg.Description, msg.Code)
+		case <-timer.C:
+			return errors.New("no jobs have been received")
+		}
+
+		err := <-w.doneCh
+		if err != nil {
+			return fmt.Errorf("error when handling a job: %v", err)
+		}
+		log.Infoln("[WORKER] job handled successfully")
+
+		timer.Reset(w.conf.WorkerAwaitDur)
+	}
+
 }
 
+// passes job to map-function handler
 func (w *HTTPWorker) Map(input io.Reader) (io.Reader, error) {
-	return mr.MapperFunc(input)
+	w.recvCh <- struct{}{} // job has been received
+	var (
+		res, err = mr.MapperFunc(input)
+	)
+	w.doneCh <- err // job has been handled
+
+	return res, err
 }
 
+// passes job to reduce-function handler
 func (w *HTTPWorker) Reduce(input io.Reader) (io.Reader, error) {
-	return mr.ReducerFunc(input)
+	w.recvCh <- struct{}{} // job has been received
+	var (
+		res, err = mr.ReducerFunc(input)
+	)
+	w.doneCh <- err // job has been handled
+
+	return res, err
+}
+
+// tells worker to stop execution
+func (w *HTTPWorker) Terminate(msg mr.TerminateMessage) {
+	w.termCh <- msg
 }

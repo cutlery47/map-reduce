@@ -81,3 +81,5 @@ func (w *RabbitWorker) Map(input io.Reader) (io.Reader, error) {
 func (w *RabbitWorker) Reduce(input io.Reader) (io.Reader, error) {
 	return mr.ReducerFunc(input)
 }
+
+func (w *RabbitWorker) Terminate(msg mr.TerminateMessage) {}

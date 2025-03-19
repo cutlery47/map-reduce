@@ -1,9 +1,11 @@
-package mapreduce
+package worker
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 
+	mr "github.com/cutlery47/map-reduce/mapreduce"
 	"github.com/cutlery47/map-reduce/worker/internal/domain/worker"
 )
 
@@ -43,4 +45,20 @@ func (wr *workerRoutes) handleReduce(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Write(raw)
+}
+
+func (wr *workerRoutes) handleTerminate(w http.ResponseWriter, r *http.Request) {
+	var (
+		msg mr.TerminateRequest
+	)
+
+	err := json.NewDecoder(r.Body).Decode(&msg)
+	if err != nil {
+		handleErr(err, w)
+		return
+	}
+
+	wr.wrk.Terminate(msg.Message)
+
+	w.WriteHeader(http.StatusNoContent)
 }
